@@ -317,16 +317,19 @@ Some game engines ignore a key that has been held down for a long time (an "igno
 - **OSD overlay:** `Looting: ON` / `Looting: OFF`.
 
 ### Settings
-Edit the `looting` section of `calibration.json` while the app is closed:
+The feature is disabled unless you set `LOOTING_KEYBIND` in `config.py` to a real key (for example `"x"`). The default is an empty string, so the bot does nothing until you enable it yourself.
 
-```json
-"looting": {
-  "keybind": "x",
-  "retrigger_interval": 5.0,
-  "toggle_key_1": "ctrl",
-  "toggle_key_2": "l"
-}
+```python
+# config.py
+LOOTING_KEYBIND = "x"
+LOOTING_RETRIGGER_INTERVAL = 5.0
+LOOTING_TOGGLE_KEY_1 = "ctrl"
+LOOTING_TOGGLE_KEY_2 = "l"
+LOOTING_RETRIGGER_GAP = 0.05
 ```
+
+> [!WARNING]
+> Do not assign the looting keybind to a heal key or a buff key. If the same key is also used for a heal/buff press, the automation can silently lose the hold and the game will stop looting.
 
 > [!NOTE]
 > The listener and the key holder are separate on purpose: the listener only flips a flag; only the action thread ever touches the keyboard.
