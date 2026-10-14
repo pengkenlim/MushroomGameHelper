@@ -35,6 +35,7 @@ flowchart LR
 | `scheduler.py` | Time-based buff/potion scheduling (`perf_counter`); decides what is due, never presses keys. |
 | `buff_setup.py` | CLI to add/list/edit/toggle/delete buff schedules in `schedules.json`. |
 | `gui.py` | Tkinter front end. |
+| `osd.py` | Read-only always-on-top status overlay (`--osd`). |
 | `calibrator.py` | Interactive OpenCV calibration tool. |
 
 The vision thread writes `health_percent`, `mana_percent`, `health_low`,
@@ -154,6 +155,31 @@ python gui.py
 In the GUI, edit the capture region and match threshold, then press **Start**.
 The live panel shows health and mana percentages and low flags, and the
 visible-target state.
+
+With the on-screen display (OSD) overlay:
+
+```bash
+python main.py --osd
+```
+
+This starts the bot threads and shows a small borderless, semi-transparent
+(80 % alpha), always-on-top window at the top-left of the screen with `HP`,
+`MP`, `Looting: ON/OFF` and the enabled buff schedules, refreshed 4 times per
+second. The overlay only reads `SharedState` and never changes it. Close it
+with **Escape** (while it has focus) or **Ctrl+C** in the terminal; either way
+the bot threads are stopped and held keys are released.
+
+OS-specific notes on click-through:
+
+- **Windows:** `osd.py` applies the `WS_EX_TRANSPARENT`/`WS_EX_NOACTIVATE`
+  extended styles via `ctypes`, so mouse clicks pass through to the game. As a
+  consequence the overlay cannot receive **Escape**; close it with **Ctrl+C**
+  in the terminal.
+- **Linux/macOS:** plain Tkinter has no click-through support. Only
+  `-topmost` and `-alpha` are used, so the overlay can take clicks and focus
+  (which makes **Escape** work). Transparency needs a compositing window
+  manager, and `-topmost` may be ignored by some X11 window managers or by
+  exclusive-fullscreen games; use borderless-windowed mode in the game.
 
 ## Configuration Reference
 

@@ -145,13 +145,23 @@ class Runner:
 
 
 def main() -> None:
-    """Runs headless, or launches the GUI with ``--gui``."""
+    """Runs headless, or launches the GUI (``--gui``) or overlay (``--osd``)."""
     logger.info("MushroomHelper main() invoked")
     if "--gui" in sys.argv[1:]:
         from gui import launch
         launch()
         return
     runner = Runner()
+    if "--osd" in sys.argv[1:]:
+        from osd import launch_osd
+        runner.start()
+        try:
+            launch_osd(runner.state)
+        except KeyboardInterrupt:
+            print("Shutting down...")
+        finally:
+            runner.stop()
+        return
     runner.start()
     print("Running. Press Ctrl+C to stop.")
     try:
