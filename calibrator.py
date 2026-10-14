@@ -249,19 +249,20 @@ def capture_screenshot() -> np.ndarray:
     Returns:
         Image array of shape (height, width, 3).
     """
-    region = {"top": config.CAPTURE_TOP, "left": config.CAPTURE_LEFT,
-              "width": config.CAPTURE_WIDTH, "height": config.CAPTURE_HEIGHT}
-    if config.WINDOW_TITLE:
-        bounds = get_window_bounds(config.WINDOW_TITLE)
-        if bounds is None:
-            print(f"Window '{config.WINDOW_TITLE}' not found or minimized; "
-                  "using the static capture region instead.")
-        else:
+    title = config.WINDOW_TITLE.strip()
+    if title:
+        bounds = get_window_bounds(title)
+        if bounds is not None:
             region = bounds
-            config.CAPTURE_TOP = bounds["top"]
-            config.CAPTURE_LEFT = bounds["left"]
-            config.CAPTURE_WIDTH = bounds["width"]
-            config.CAPTURE_HEIGHT = bounds["height"]
+        else:
+            print(f"Window '{title}' not found; using static coordinates.")
+            region = {"top": config.CAPTURE_TOP, "left": config.CAPTURE_LEFT,
+                      "width": config.CAPTURE_WIDTH,
+                      "height": config.CAPTURE_HEIGHT}
+    else:
+        region = {"top": config.CAPTURE_TOP, "left": config.CAPTURE_LEFT,
+                  "width": config.CAPTURE_WIDTH,
+                  "height": config.CAPTURE_HEIGHT}
     with mss.mss() as sct:
         return cv2.cvtColor(np.array(sct.grab(region)), cv2.COLOR_BGRA2BGR)
 
