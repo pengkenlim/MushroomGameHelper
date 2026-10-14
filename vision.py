@@ -1,6 +1,7 @@
 """Vision module: screen capture and frame analysis."""
 
 import statistics
+import time
 from collections import deque
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
@@ -11,6 +12,7 @@ import numpy as np
 import config
 from config import BarConfig
 from logger import logger
+from window_manager import get_window_bounds
 
 Match = Tuple[int, int, float]
 
@@ -30,6 +32,10 @@ class Vision:
             "width": config.CAPTURE_WIDTH,
             "height": config.CAPTURE_HEIGHT,
         }
+        self._window_found: Optional[bool] = None
+        self._last_refresh: float = time.perf_counter()
+        if config.CAPTURE_WINDOW_TITLE:
+            self.refresh_region()
         self.history: Dict[str, Deque[float]] = {
             "health": deque(maxlen=config.SMOOTHING_WINDOW),
             "mana": deque(maxlen=config.SMOOTHING_WINDOW),
@@ -41,6 +47,35 @@ class Vision:
             image = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
             if image is not None:
                 self.templates[name] = image
+
+    def refresh_region(self) -> bool:
+        """Re-fetches the game window bounds into ``self.region``.
+
+        Does nothing if ``config.CAPTURE_WINDOW_TITLE`` is empty. If the window
+        cannot be found the current region is kept (initially the static
+        ``CAPTURE_*`` values), so capture never breaks. Messages are only
+        logged when the found/not-found state changes.
+
+        Returns:
+            True if the region was updated from a window.
+        """
+        title = config.CAPTURE_WINDOW_TITLE
+        if not title:
+            return False
+        bounds = get_window_bounds(title)
+        if bounds is None:
+            if self._window_found is not False:
+                logger.warning(
+                    f"Window '{title}' not found; keeping "
+                    f"capture region {self.region} (static fallback if never found)")
+            self._window_found = False
+            return False
+        if self._window_found is not True or bounds != self.region:
+            logger.info(f"Capture region set from window '{title}': {bounds}")
+            print(f"Capture region set from window '{title}': {bounds}")
+        self._window_found = True
+        self.region = bounds
+        return True
 
     def capture(self) -> np.ndarray:
         """Grabs the capture region.
@@ -230,4 +265,10 @@ class Vision:
         Returns:
             The structured result of :meth:`analyze`.
         """
+        interval = config.WINDOW_REFRESH_INTERVAL
+        if config.CAPTURE_WINDOW_TITLE and interval > 0:
+            now = time.perf_counter()
+            if now - self._last_refresh >= interval:
+                self._last_refresh = now
+                self.refresh_region()
         return self.analyze(self.capture())

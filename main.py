@@ -11,6 +11,7 @@ from logger import logger
 from scheduler import Scheduler
 from state import SharedState
 from vision import Vision
+from window_manager import get_window_bounds
 
 
 def run_loop(
@@ -79,6 +80,15 @@ class Runner:
         if self.running:
             return
         logger.info(f"Bot session starting. Config: {config_summary()}")
+        if config.CAPTURE_WINDOW_TITLE:
+            bounds = get_window_bounds(config.CAPTURE_WINDOW_TITLE)
+            if bounds is None:
+                logger.warning(
+                    f"Window '{config.CAPTURE_WINDOW_TITLE}' not found; "
+                    "falling back to static capture coordinates")
+            else:
+                logger.info(
+                    f"Window '{config.CAPTURE_WINDOW_TITLE}' found: {bounds}")
         self._stop = threading.Event()
         vision = self._vision = Vision()
         action = self._action = Action()

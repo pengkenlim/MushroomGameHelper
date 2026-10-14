@@ -2,5 +2,6 @@ mss
 opencv-python
 numpy
 pynput
+pygetwindow
 # Tkinter ships with Python (it is not installable via pip).
 # Debian/Ubuntu: sudo apt install python3-tk
