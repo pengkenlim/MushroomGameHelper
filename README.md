@@ -32,12 +32,18 @@ flowchart LR
 | `state.py` | Lock-protected shared dictionary bridging the two threads. |
 | `action.py` | Key presses/holds via `pynput`, threshold logic and cooldowns. |
 | `main.py` | `Runner` managing both threads; Ctrl+C triggers graceful shutdown. |
+| `scheduler.py` | Time-based buff/potion scheduling (`perf_counter`); decides what is due, never presses keys. |
+| `buff_setup.py` | CLI to add/list/edit/toggle/delete buff schedules in `schedules.json`. |
 | `gui.py` | Tkinter front end. |
 | `calibrator.py` | Interactive OpenCV calibration tool. |
 
 The vision thread writes `health_percent`, `mana_percent`, `health_low`,
 `mana_low`, `targets_visible` and `matches` to `SharedState`; the action thread
 reads a consistent snapshot every tick and presses keys subject to cooldowns.
+A third `scheduler` thread (5 Hz) queues due buff keybinds in
+`pending_buff_presses`; the action thread drains and presses them, so it remains
+the only component that touches the keyboard. Configure schedules with
+`python buff_setup.py`.
 
 ## Prerequisites and Installation
 

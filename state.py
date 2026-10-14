@@ -1,8 +1,11 @@
-"""Thread-safe shared state bridging the vision and action threads."""
+"""Thread-safe shared state bridging the vision, scheduler and action threads."""
 
 import copy
 import threading
-from typing import Any, Dict
+from typing import Any, Dict, List
+
+
+PENDING_BUFF_PRESSES: str = "pending_buff_presses"
 
 
 class SharedState:
@@ -16,6 +19,7 @@ class SharedState:
         """
         self._lock: threading.Lock = threading.Lock()
         self._data: Dict[str, Any] = dict(initial or {})
+        self._data.setdefault(PENDING_BUFF_PRESSES, [])
 
     def get(self, key: str, default: Any = None) -> Any:
         """Returns the value for ``key`` or ``default`` if absent.
@@ -57,3 +61,32 @@ class SharedState:
         """
         with self._lock:
             return copy.deepcopy(self._data)
+
+    def append_buff_press(self, keybind: str) -> None:
+        """Queues a scheduled buff keybind for the action thread.
+
+        Args:
+            keybind: Key to be pressed by the action thread.
+        """
+        with self._lock:
+            pending: List[str] = self._data[PENDING_BUFF_PRESSES]
+            pending.append(keybind)
+
+    def clear_buff_presses(self) -> None:
+        """Discards all pending scheduled buff presses."""
+        with self._lock:
+            self._data[PENDING_BUFF_PRESSES] = []
+
+    def drain_buff_presses(self) -> List[str]:
+        """Atomically returns and clears the pending buff presses.
+
+        Using a single locked operation guarantees that presses appended
+        concurrently by the scheduler are never lost between read and clear.
+
+        Returns:
+            The pending keybinds in the order they were queued.
+        """
+        with self._lock:
+            pending: List[str] = self._data[PENDING_BUFF_PRESSES]
+            self._data[PENDING_BUFF_PRESSES] = []
+            return pending

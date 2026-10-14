@@ -1,4 +1,4 @@
-"""Entry point: runs the vision and action threads (CLI or GUI)."""
+"""Entry point: runs the vision, scheduler and action threads (CLI or GUI)."""
 
 import sys
 import threading
@@ -7,6 +7,7 @@ from typing import Callable, List
 
 import config
 from action import Action
+from scheduler import Scheduler
 from state import SharedState
 from vision import Vision
 
@@ -22,16 +23,16 @@ def run_loop(
         stop: Event signalling shutdown.
     """
     while not stop.is_set():
-        started = time.monotonic()
+        started = time.perf_counter()
         try:
             step()
         except Exception as exc:  # keep the loop alive
             print(f"[error] {exc!r}")
-        stop.wait(max(0.0, interval - (time.monotonic() - started)))
+        stop.wait(max(0.0, interval - (time.perf_counter() - started)))
 
 
 class Runner:
-    """Owns the shared state and the vision/action threads."""
+    """Owns the shared state and the vision/scheduler/action threads."""
 
     def __init__(self) -> None:
         """Creates the shared state; threads are created on ``start``."""
@@ -42,6 +43,7 @@ class Runner:
         self._threads: List[threading.Thread] = []
         self._vision: Vision | None = None
         self._action: Action | None = None
+        self._scheduler: Scheduler | None = None
 
     @property
     def running(self) -> bool:
@@ -49,19 +51,27 @@ class Runner:
         return bool(self._threads)
 
     def start(self) -> None:
-        """Starts the vision and action threads (no-op if running)."""
+        """Starts the vision, scheduler and action threads (no-op if running)."""
         if self.running:
             return
         self._stop = threading.Event()
         vision = self._vision = Vision()
         action = self._action = Action()
+        scheduler = self._scheduler = Scheduler()
         state = self.state
+        state.clear_buff_presses()
 
         def vision_step() -> None:
             state.update(vision.process())
 
         def action_step() -> None:
-            action.decide(state.snapshot())
+            action.run_cycle(state)
+
+        def scheduler_step() -> None:
+            # Never presses keys: only queues them for the action thread.
+            for keybind in scheduler.poll():
+                state.append_buff_press(keybind)
+            state.set("schedule_status", scheduler.status())
 
         self._threads = [
             threading.Thread(
@@ -70,6 +80,9 @@ class Runner:
             threading.Thread(
                 target=run_loop, name="action", daemon=True,
                 args=(action_step, config.ACTION_INTERVAL, self._stop)),
+            threading.Thread(
+                target=run_loop, name="scheduler", daemon=True,
+                args=(scheduler_step, config.SCHEDULER_INTERVAL, self._stop)),
         ]
         for thread in self._threads:
             thread.start()

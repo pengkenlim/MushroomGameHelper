@@ -3,9 +3,10 @@
 import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
 CALIBRATION_PATH: Path = Path(__file__).resolve().parent / "calibration.json"
+SCHEDULES_PATH: Path = Path(__file__).resolve().parent / "schedules.json"
 
 HSV = Tuple[int, int, int]
 Roi = Tuple[int, int, int, int]  # (x, y, width, height) within the capture
@@ -61,6 +62,39 @@ class Config:
             keybind="m",
         )
     )
+
+
+@dataclass
+class BuffSchedule:
+    """A buff/potion that is re-triggered on a fixed interval.
+
+    Attributes:
+        name: Human-readable unique name (e.g. ``"Attack Buff"``).
+        keybind: Key to press (pynput key name or single character).
+        interval_seconds: Seconds between automated presses (must be > 0).
+        enabled: Disabled schedules are kept in the file but never fire.
+
+    Raises:
+        ValueError: If a field is empty, non-positive or not finite.
+    """
+
+    name: str
+    keybind: str
+    interval_seconds: float
+    enabled: bool = True
+
+    def __post_init__(self) -> None:
+        """Normalizes and validates the fields."""
+        self.name = str(self.name).strip()
+        self.keybind = str(self.keybind).strip()
+        self.interval_seconds = float(self.interval_seconds)
+        self.enabled = bool(self.enabled)
+        if not self.name:
+            raise ValueError("name must not be empty")
+        if not self.keybind:
+            raise ValueError("keybind must not be empty")
+        if not 0.0 < self.interval_seconds < float("inf"):
+            raise ValueError("interval_seconds must be a positive number")
 
 
 def _tuple(value: Any, default: Tuple[int, ...]) -> Tuple[int, ...]:
@@ -124,6 +158,56 @@ def load_config(path: Path = CALIBRATION_PATH) -> Config:
         return default
 
 
+def load_schedules(path: Path = SCHEDULES_PATH) -> List[BuffSchedule]:
+    """Loads buff schedules from JSON.
+
+    Invalid entries and entries with duplicate names are skipped.
+
+    Args:
+        path: Location of the schedules file.
+
+    Returns:
+        The valid schedules; empty if the file is missing or unreadable.
+    """
+    if not path.is_file():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        items = data.get("schedules", []) if isinstance(data, dict) else data
+        if not isinstance(items, list):
+            return []
+    except (ValueError, OSError):
+        return []
+    schedules: List[BuffSchedule] = []
+    seen = set()
+    for item in items:
+        try:
+            schedule = BuffSchedule(
+                name=item["name"],
+                keybind=item["keybind"],
+                interval_seconds=item["interval_seconds"],
+                enabled=item.get("enabled", True),
+            )
+        except (KeyError, ValueError, TypeError, AttributeError):
+            continue
+        if schedule.name not in seen:
+            seen.add(schedule.name)
+            schedules.append(schedule)
+    return schedules
+
+
+def save_schedules(schedules: List[BuffSchedule],
+                   path: Path = SCHEDULES_PATH) -> None:
+    """Writes buff schedules to JSON.
+
+    Args:
+        schedules: Schedules to persist.
+        path: Destination file.
+    """
+    payload = {"schedules": [asdict(s) for s in schedules]}
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
 _loaded: Config = load_config()
 
 # Capture region (pixels, relative to the primary monitor).
@@ -157,6 +241,12 @@ KEYBINDS: Dict[str, str] = {
     "jump": "space",
     "attack": "z",
 }
+
+# Scheduler loop interval (seconds): 5 Hz.
+SCHEDULER_INTERVAL: float = 0.20
+
+# Minimum seconds between two automated buff key presses (global input gap).
+BUFF_INPUT_COOLDOWN: float = 0.15
 
 # How long (seconds) a tap-style key is held.
 DEFAULT_PRESS_DURATION: float = 0.05

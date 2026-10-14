@@ -1,8 +1,9 @@
 """Tkinter GUI for controlling the automation."""
 
+import time
 import tkinter as tk
 from tkinter import ttk
-from typing import Dict
+from typing import Dict, List
 
 import config
 from main import Runner
@@ -118,7 +119,32 @@ class App:
             f"(low: {snap.get('mana_low')})\n"
             f"Matches: {counts or '-'}"
         )
+        self.info.set(self.info.get() + "\n" + self.schedule_text(snap))
         self.root.after(REFRESH_MS, self.refresh)
+
+    @staticmethod
+    def schedule_text(snap: Dict[str, object]) -> str:
+        """Formats the active buff schedules with next-press countdowns.
+
+        Args:
+            snap: Shared-state snapshot containing ``schedule_status``.
+
+        Returns:
+            Multi-line text for the status panel.
+        """
+        status: List[Dict[str, object]] = snap.get(
+            "schedule_status") or []  # type: ignore[assignment]
+        if not status:
+            return "Buffs: -"
+        now = time.perf_counter()
+        lines = ["Buffs:"]
+        for item in status:
+            remaining = max(0.0, float(item["next_due"]) - now)  # type: ignore[arg-type]
+            lines.append(
+                f"  {item['name']} [{item['keybind']}] "
+                f"every {float(item['interval_seconds']):g}s "  # type: ignore[arg-type]
+                f"- next in {remaining:.1f}s")
+        return "\n".join(lines)
 
     def on_close(self) -> None:
         """Stops threads (releasing keys) and closes the window."""
