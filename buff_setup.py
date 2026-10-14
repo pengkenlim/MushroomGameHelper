@@ -1,3 +1,4 @@
+# DEPRECATED: Buff management is now integrated into gui.py. This CLI script is retained for backward compatibility.
 """Interactive CLI for defining buff/potion schedules (``schedules.json``)."""
 
 from typing import List

@@ -1,11 +1,14 @@
 """Tkinter GUI for controlling the automation."""
 
+import subprocess
+import sys
 import time
 import tkinter as tk
 from tkinter import ttk
 from typing import Dict, List
 
 import config
+from config import BuffSchedule
 from main import Runner
 
 REFRESH_MS: int = 250
@@ -26,8 +29,14 @@ class App:
         root.title("MushroomGameHelper")
         root.protocol("WM_DELETE_WINDOW", self.on_close)
 
-        frame = ttk.Frame(root, padding=10)
-        frame.grid(sticky="nsew")
+        self.notebook = ttk.Notebook(root)
+        self.notebook.grid(sticky="nsew")
+        frame = ttk.Frame(self.notebook, padding=10)
+        self.calibrate_tab = ttk.Frame(self.notebook, padding=10)
+        self.buffs_tab = ttk.Frame(self.notebook, padding=10)
+        self.notebook.add(frame, text="Dashboard")
+        self.notebook.add(self.calibrate_tab, text="Calibrate Bars")
+        self.notebook.add(self.buffs_tab, text="Manage Buffs")
 
         self.fields: Dict[str, tk.StringVar] = {}
         settings = [
@@ -56,11 +65,187 @@ class App:
 
         self.status = tk.StringVar(value="Idle")
         self.info = tk.StringVar(value="")
-        ttk.Label(frame, textvariable=self.status).grid(
+        ttk.Label(frame, textvariable=self.status, wraplength=320).grid(
             row=len(settings) + 2, column=0, columnspan=2, sticky="w")
         ttk.Label(frame, textvariable=self.info, justify=tk.LEFT).grid(
             row=len(settings) + 3, column=0, columnspan=2, sticky="w")
+
+        self._build_calibrate_tab()
+        self._build_buffs_tab()
+        self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
+
+        if not self.is_calibration_valid():
+            self.start_btn.config(state=tk.DISABLED)
+            self.status.set(self.SETUP_INCOMPLETE)
+            self.notebook.select(self.calibrate_tab)
         self.refresh()
+
+    SETUP_INCOMPLETE: str = ("Setup Incomplete: Please calibrate your bars in "
+                             "the 'Calibrate Bars' tab before starting.")
+
+    @staticmethod
+    def is_calibration_valid() -> bool:
+        """Checks whether a usable bar calibration exists.
+
+        Valid means ``calibration.json`` exists and the Health and Mana ROIs
+        have a positive width/height and are not the default placeholders.
+
+        Returns:
+            True if the bars have been calibrated.
+        """
+        if not config.CALIBRATION_PATH.is_file():
+            return False
+        placeholder = {config.BarConfig().roi,
+                       config.Config().mana.roi}
+        for bar in (config.HEALTH, config.MANA):
+            _, _, width, height = bar.roi
+            if width <= 0 or height <= 0 or tuple(bar.roi) in placeholder:
+                return False
+        return True
+
+    def _build_calibrate_tab(self) -> None:
+        """Builds the "Calibrate Bars" tab."""
+        ttk.Button(self.calibrate_tab, text="Launch Bar Calibrator",
+                   command=self.launch_calibrator).grid(
+            row=0, column=0, pady=10, ipadx=20, ipady=10)
+        ttk.Label(self.calibrate_tab,
+                  text="Calibration saves directly to calibration.json"
+                  ).grid(row=1, column=0, pady=5)
+
+    def launch_calibrator(self) -> None:
+        """Runs ``calibrator.py`` with the main window hidden.
+
+        The window is always restored afterwards (even if the calibrator is
+        cancelled or fails to start) and the UI state is refreshed.
+        """
+        if self.runner.running:
+            self.status.set("Stop the bot before calibrating.")
+            return
+        self.root.withdraw()
+        try:
+            subprocess.run([sys.executable, "calibrator.py"], check=False)
+        except OSError as exc:
+            self.status.set(f"Could not launch calibrator: {exc}")
+        finally:
+            self.root.deiconify()
+        self.reload_calibration()
+
+    def reload_calibration(self) -> None:
+        """Reloads ``calibration.json`` and re-evaluates the first-run check."""
+        loaded = config.load_config()
+        config.HEALTH = loaded.health
+        config.MANA = loaded.mana
+        config.LOOTING = loaded.looting
+        if self.is_calibration_valid():
+            self.start_btn.config(state=tk.NORMAL)
+            self.status.set("Calibration loaded. Ready.")
+            self.notebook.select(0)
+        else:
+            self.start_btn.config(state=tk.DISABLED)
+            self.status.set(self.SETUP_INCOMPLETE)
+
+    def _build_buffs_tab(self) -> None:
+        """Builds the "Manage Buffs" tab."""
+        columns = ("Name", "Keybind", "Interval", "Enabled")
+        self.tree = ttk.Treeview(self.buffs_tab, columns=columns,
+                                 show="headings", height=8,
+                                 selectmode="browse")
+        for col in columns:
+            self.tree.heading(col, text=col)
+            self.tree.column(col, width=90, anchor="w")
+        self.tree.grid(row=0, column=0, columnspan=3, sticky="nsew")
+        ttk.Button(self.buffs_tab, text="Add",
+                   command=self.add_buff_dialog).grid(row=1, column=0, pady=5)
+        ttk.Button(self.buffs_tab, text="Toggle",
+                   command=self.toggle_buff).grid(row=1, column=1, pady=5)
+        ttk.Button(self.buffs_tab, text="Delete",
+                   command=self.delete_buff).grid(row=1, column=2, pady=5)
+        self.refresh_buffs()
+
+    def on_tab_changed(self, _event: object = None) -> None:
+        """Reloads the schedules when the "Manage Buffs" tab is entered."""
+        if self.notebook.select() == str(self.buffs_tab):
+            self.refresh_buffs()
+
+    def refresh_buffs(self) -> None:
+        """Populates the Treeview from ``config.load_schedules()``."""
+        self.tree.delete(*self.tree.get_children())
+        for sched in config.load_schedules():
+            self.tree.insert("", tk.END, iid=sched.name, values=(
+                sched.name, sched.keybind, f"{sched.interval_seconds:g}",
+                "Yes" if sched.enabled else "No"))
+
+    def _persist_buffs(self, schedules: List[BuffSchedule]) -> None:
+        """Saves schedules and refreshes the table.
+
+        Args:
+            schedules: The full updated schedule list.
+        """
+        try:
+            config.save_schedules(schedules)
+        except OSError as exc:
+            self.status.set(f"Save failed: {exc}")
+        self.refresh_buffs()
+
+    def _selected_name(self) -> str | None:
+        """Returns the selected schedule name, or None if nothing selected."""
+        selection = self.tree.selection()
+        return selection[0] if selection else None
+
+    def toggle_buff(self) -> None:
+        """Flips the enabled flag of the selected schedule."""
+        name = self._selected_name()
+        if name is None:
+            return
+        schedules = config.load_schedules()
+        for sched in schedules:
+            if sched.name == name:
+                sched.enabled = not sched.enabled
+        self._persist_buffs(schedules)
+
+    def delete_buff(self) -> None:
+        """Deletes the selected schedule."""
+        name = self._selected_name()
+        if name is None:
+            return
+        self._persist_buffs(
+            [s for s in config.load_schedules() if s.name != name])
+
+    def add_buff_dialog(self) -> None:
+        """Opens a dialog to add a new schedule."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Add Buff")
+        dialog.transient(self.root)
+        vars_: Dict[str, tk.StringVar] = {}
+        for row, label in enumerate(("Name", "Keybind", "Interval (s)")):
+            ttk.Label(dialog, text=label).grid(row=row, column=0, sticky="w",
+                                               padx=5, pady=2)
+            var = tk.StringVar()
+            ttk.Entry(dialog, textvariable=var, width=20).grid(
+                row=row, column=1, padx=5, pady=2)
+            vars_[label] = var
+        error = tk.StringVar()
+        ttk.Label(dialog, textvariable=error, foreground="red").grid(
+            row=3, column=0, columnspan=2)
+
+        def submit() -> None:
+            """Validates the fields and stores the new schedule."""
+            try:
+                new = BuffSchedule(vars_["Name"].get(),
+                                   vars_["Keybind"].get(),
+                                   float(vars_["Interval (s)"].get()))
+                schedules = config.load_schedules()
+                if any(s.name == new.name for s in schedules):
+                    raise ValueError("name already exists")
+            except ValueError as exc:
+                error.set(str(exc))
+                return
+            schedules.append(new)
+            self._persist_buffs(schedules)
+            dialog.destroy()
+
+        ttk.Button(dialog, text="Save", command=submit).grid(
+            row=4, column=0, columnspan=2, pady=5)
 
     def apply_settings(self) -> bool:
         """Validates the entries and writes them into ``config``.
