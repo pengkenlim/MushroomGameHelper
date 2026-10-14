@@ -265,6 +265,8 @@ def run_window(session: CalibrationSession) -> bool:
             key = cv2.waitKey(20) & 0xFF
             if key in (ord("q"), 27):
                 return False
+            if cv2.getWindowProperty(WINDOW, cv2.WND_PROP_VISIBLE) < 1:
+                return False  # window closed via the title-bar button
             if key == ord("r"):
                 session.redo()
         return True

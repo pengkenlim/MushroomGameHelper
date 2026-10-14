@@ -151,7 +151,8 @@ class Vision:
             the bar is invisible in this frame) or the ROI is invalid.
         """
         x, y, w, h = bar.roi
-        roi = frame[max(0, y):y + h, max(0, x):x + w]
+        # Clamp both ends: a negative end index would wrap around in numpy.
+        roi = frame[max(0, y):max(0, y + h), max(0, x):max(0, x + w)]
         if roi.size == 0:
             return None
         hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)

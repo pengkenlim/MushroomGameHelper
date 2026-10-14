@@ -4,6 +4,7 @@ import subprocess
 import sys
 import time
 import tkinter as tk
+from pathlib import Path
 from tkinter import ttk
 from typing import Dict, List
 
@@ -12,6 +13,8 @@ from config import BuffSchedule
 from main import Runner
 
 REFRESH_MS: int = 250
+CALIBRATOR_POLL_MS: int = 200
+CALIBRATOR_PATH: Path = Path(__file__).resolve().parent / "calibrator.py"
 
 
 class App:
@@ -25,6 +28,10 @@ class App:
             runner: Optional runner (a new one is created by default).
         """
         self.root: tk.Tk = root
+        self._refresh_id: str | None = None
+        self._poll_id: str | None = None
+        self._closing: bool = False
+        self._calibrator: subprocess.Popen[bytes] | None = None
         self.runner: Runner = runner or Runner()
         root.title("MushroomGameHelper")
         root.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -113,21 +120,47 @@ class App:
                   ).grid(row=1, column=0, pady=5)
 
     def launch_calibrator(self) -> None:
-        """Runs ``calibrator.py`` with the main window hidden.
+        """Starts ``calibrator.py`` with the main window hidden.
 
-        The window is always restored afterwards (even if the calibrator is
-        cancelled or fails to start) and the UI state is refreshed.
+        The subprocess is polled with ``root.after`` instead of being awaited,
+        so the Tk event loop is never blocked. Current settings are saved first
+        because the calibrator reads the capture region from
+        ``calibration.json``. The window is always restored when the process
+        ends (finished, cancelled, closed, crashed) or fails to start.
         """
+        if self._calibrator is not None:
+            return
         if self.runner.running:
             self.status.set("Stop the bot before calibrating.")
             return
+        if not self.apply_settings():
+            return
+        try:
+            config.save_config()
+        except OSError as exc:
+            self.status.set(f"Save failed: {exc}")
+            return
         self.root.withdraw()
         try:
-            subprocess.run([sys.executable, "calibrator.py"], check=False)
+            self._calibrator = subprocess.Popen(
+                [sys.executable, str(CALIBRATOR_PATH)],
+                cwd=str(CALIBRATOR_PATH.parent))
         except OSError as exc:
-            self.status.set(f"Could not launch calibrator: {exc}")
-        finally:
             self.root.deiconify()
+            self.status.set(f"Could not launch calibrator: {exc}")
+            return
+        self._poll_id = self.root.after(
+            CALIBRATOR_POLL_MS, self._poll_calibrator)
+
+    def _poll_calibrator(self) -> None:
+        """Restores the window and re-checks calibration once the tool exits."""
+        proc = self._calibrator
+        if proc is not None and proc.poll() is None:
+            self._poll_id = self.root.after(
+                CALIBRATOR_POLL_MS, self._poll_calibrator)
+            return
+        self._calibrator = None
+        self.root.deiconify()
         self.reload_calibration()
 
     def reload_calibration(self) -> None:
@@ -278,7 +311,15 @@ class App:
         """Applies settings and starts the worker threads."""
         if not self.apply_settings():
             return
-        self.runner.start()
+        if not self.is_calibration_valid():
+            self.status.set(self.SETUP_INCOMPLETE)
+            self.start_btn.config(state=tk.DISABLED)
+            return
+        try:
+            self.runner.start()
+        except Exception as exc:  # e.g. no display / input backend
+            self.status.set(f"Could not start: {exc}")
+            return
         self.start_btn.config(state=tk.DISABLED)
         self.stop_btn.config(state=tk.NORMAL)
         self.status.set("Running")
@@ -300,20 +341,28 @@ class App:
                 self.status.set(f"Save failed: {exc}")
 
     def refresh(self) -> None:
-        """Updates the live status display and reschedules itself."""
-        snap = self.runner.state.snapshot()
-        counts = {k: len(v) for k, v in snap.get("matches", {}).items()}
-        self.info.set(
-            f"Targets visible: {snap.get('targets_visible')}\n"
-            f"Health: {snap.get('health_percent', 0.0):.0f}% "
-            f"(low: {snap.get('health_low')})\n"
-            f"Mana: {snap.get('mana_percent', 0.0):.0f}% "
-            f"(low: {snap.get('mana_low')})\n"
-            f"Matches: {counts or '-'}"
-        )
-        self.info.set(self.info.get() + "\n" + self.schedule_text(snap)
-                      + "\n" + self.looting_status_text(snap))
-        self.root.after(REFRESH_MS, self.refresh)
+        """Updates the live status display and reschedules itself.
+
+        The next tick is always scheduled (unless the window is closing), so a
+        transient error cannot freeze the status panel.
+        """
+        try:
+            snap = self.runner.state.snapshot()
+            counts = {k: len(v) for k, v in snap.get("matches", {}).items()}
+            self.info.set(
+                f"Targets visible: {snap.get('targets_visible')}\n"
+                f"Health: {snap.get('health_percent', 0.0):.0f}% "
+                f"(low: {snap.get('health_low')})\n"
+                f"Mana: {snap.get('mana_percent', 0.0):.0f}% "
+                f"(low: {snap.get('mana_low')})\n"
+                f"Matches: {counts or '-'}\n" + self.schedule_text(snap)
+                + "\n" + self.looting_status_text(snap))
+        except (tk.TclError, ValueError, TypeError, AttributeError) as exc:
+            if not self._closing:
+                self.info.set(f"Status unavailable: {exc}")
+        finally:
+            if not self._closing:
+                self._refresh_id = self.root.after(REFRESH_MS, self.refresh)
 
     @staticmethod
     def schedule_text(snap: Dict[str, object]) -> str:
@@ -355,10 +404,26 @@ class App:
                 f"+{config.LOOTING.toggle_key_2} to toggle)")
 
     def on_close(self) -> None:
-        """Stops threads (releasing keys) and closes the window."""
-        self.runner.stop()
-        self.save()
-        self.root.destroy()
+        """Stops threads (releasing keys) and closes the window.
+
+        The window is destroyed even if stopping or saving fails, and pending
+        ``after`` callbacks and a running calibrator are cancelled first.
+        """
+        self._closing = True
+        for after_id in (self._refresh_id, self._poll_id):
+            if after_id is not None:
+                try:
+                    self.root.after_cancel(after_id)
+                except tk.TclError:
+                    pass
+        proc = self._calibrator
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
+        try:
+            self.runner.stop()
+            self.save()
+        finally:
+            self.root.destroy()
 
 
 def launch() -> None:
