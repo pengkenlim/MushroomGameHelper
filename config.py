@@ -20,6 +20,7 @@ class CaptureRegion:
     left: int = 0
     width: int = 800
     height: int = 600
+    window_title: str = ""
 
 
 @dataclass
@@ -193,6 +194,8 @@ def load_config(path: Path = CALIBRATION_PATH) -> Config:
                 left=int(cap.get("left", default.capture.left)),
                 width=int(cap.get("width", default.capture.width)),
                 height=int(cap.get("height", default.capture.height)),
+                window_title=str(
+                    cap.get("window_title", default.capture.window_title)),
             ),
             match_threshold=float(
                 data.get("match_threshold", default.match_threshold)),
@@ -262,6 +265,13 @@ CAPTURE_LEFT: int = _loaded.capture.left
 CAPTURE_WIDTH: int = _loaded.capture.width
 CAPTURE_HEIGHT: int = _loaded.capture.height
 
+# Optional game window title (substring, case-insensitive). When non-empty the
+# capture region follows the window; the static values above are the fallback.
+CAPTURE_WINDOW_TITLE: str = _loaded.capture.window_title
+
+# Seconds between window-bounds re-checks while running (0 disables).
+WINDOW_REFRESH_INTERVAL: float = 2.0
+
 # Loop intervals (seconds).
 VISION_INTERVAL: float = 0.25  # ~4 FPS
 ACTION_INTERVAL: float = 0.10  # ~10 Hz
@@ -309,7 +319,8 @@ def current_config() -> Config:
     """
     return Config(
         capture=CaptureRegion(CAPTURE_TOP, CAPTURE_LEFT,
-                              CAPTURE_WIDTH, CAPTURE_HEIGHT),
+                              CAPTURE_WIDTH, CAPTURE_HEIGHT,
+                              CAPTURE_WINDOW_TITLE),
         match_threshold=MATCH_THRESHOLD,
         health=HEALTH,
         mana=MANA,

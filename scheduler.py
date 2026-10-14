@@ -11,6 +11,7 @@ from typing import Dict, List
 
 import config
 from config import BuffSchedule
+from logger import logger
 
 
 class Scheduler:
@@ -93,6 +94,7 @@ class Scheduler:
         due = self.due_schedules(now)
         for schedule in due:
             self.mark_triggered(schedule, now)
+            logger.info(f"Scheduling buff press: {schedule.keybind}")
         return [s.keybind for s in due]
 
     def status(self) -> List[Dict[str, object]]:

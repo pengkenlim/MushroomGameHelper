@@ -42,18 +42,24 @@ class App:
                 row=row, column=1, padx=5, pady=2)
             self.fields[attr] = var
 
+        self.title_var = tk.StringVar(value=config.CAPTURE_WINDOW_TITLE)
+        ttk.Label(frame, text="Window Title").grid(
+            row=len(settings), column=0, sticky="w")
+        ttk.Entry(frame, textvariable=self.title_var, width=20).grid(
+            row=len(settings), column=1, padx=5, pady=2)
+
         self.start_btn = ttk.Button(frame, text="Start", command=self.start)
         self.stop_btn = ttk.Button(frame, text="Stop", command=self.stop,
                                    state=tk.DISABLED)
-        self.start_btn.grid(row=len(settings), column=0, pady=8)
-        self.stop_btn.grid(row=len(settings), column=1, pady=8)
+        self.start_btn.grid(row=len(settings) + 1, column=0, pady=8)
+        self.stop_btn.grid(row=len(settings) + 1, column=1, pady=8)
 
         self.status = tk.StringVar(value="Idle")
         self.info = tk.StringVar(value="")
         ttk.Label(frame, textvariable=self.status).grid(
-            row=len(settings) + 1, column=0, columnspan=2, sticky="w")
-        ttk.Label(frame, textvariable=self.info, justify=tk.LEFT).grid(
             row=len(settings) + 2, column=0, columnspan=2, sticky="w")
+        ttk.Label(frame, textvariable=self.info, justify=tk.LEFT).grid(
+            row=len(settings) + 3, column=0, columnspan=2, sticky="w")
         self.refresh()
 
     def apply_settings(self) -> bool:
@@ -80,6 +86,7 @@ class App:
             return False
         for attr, value in parsed.items():
             setattr(config, attr, value)
+        config.CAPTURE_WINDOW_TITLE = self.title_var.get().strip()
         return True
 
     def start(self) -> None:

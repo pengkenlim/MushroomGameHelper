@@ -7,9 +7,11 @@ from typing import Callable, List
 
 import config
 from action import Action, KeyComboListener
+from logger import logger
 from scheduler import Scheduler
 from state import SharedState
 from vision import Vision
+from window_manager import get_window_bounds
 
 
 def run_loop(
@@ -27,8 +29,29 @@ def run_loop(
         try:
             step()
         except Exception as exc:  # keep the loop alive
-            print(f"[error] {exc!r}")
+            thread_name = threading.current_thread().name
+            logger.error(f"Error in {thread_name}: {exc}", exc_info=True)
         stop.wait(max(0.0, interval - (time.perf_counter() - started)))
+
+
+def config_summary() -> str:
+    """Builds a one-line summary of the active configuration.
+
+    Returns:
+        Human-readable summary for the startup log entry.
+    """
+    return (
+        f"health(key={config.HEALTH.keybind}, "
+        f"threshold={config.HEALTH.threshold_percent}, "
+        f"cooldown={config.HEALTH.cooldown}) "
+        f"mana(key={config.MANA.keybind}, "
+        f"threshold={config.MANA.threshold_percent}, "
+        f"cooldown={config.MANA.cooldown}) "
+        f"looting(key={config.LOOTING.keybind}, "
+        f"toggle={config.LOOTING.toggle_key_1}+{config.LOOTING.toggle_key_2}) "
+        f"intervals(vision={config.VISION_INTERVAL}, "
+        f"action={config.ACTION_INTERVAL}, "
+        f"scheduler={config.SCHEDULER_INTERVAL})")
 
 
 class Runner:
@@ -53,8 +76,19 @@ class Runner:
 
     def start(self) -> None:
         """Starts the vision, scheduler and action threads (no-op if running)."""
+        logger.debug("Runner.start() called")
         if self.running:
             return
+        logger.info(f"Bot session starting. Config: {config_summary()}")
+        if config.CAPTURE_WINDOW_TITLE:
+            bounds = get_window_bounds(config.CAPTURE_WINDOW_TITLE)
+            if bounds is None:
+                logger.warning(
+                    f"Window '{config.CAPTURE_WINDOW_TITLE}' not found; "
+                    "falling back to static capture coordinates")
+            else:
+                logger.info(
+                    f"Window '{config.CAPTURE_WINDOW_TITLE}' found: {bounds}")
         self._stop = threading.Event()
         vision = self._vision = Vision()
         action = self._action = Action()
@@ -107,15 +141,27 @@ class Runner:
             self._action.release_all()
         if self._vision is not None:
             self._vision.close()
+        logger.info("Bot session stopped gracefully")
 
 
 def main() -> None:
-    """Runs headless, or launches the GUI with ``--gui``."""
+    """Runs headless, or launches the GUI (``--gui``) or overlay (``--osd``)."""
+    logger.info("MushroomHelper main() invoked")
     if "--gui" in sys.argv[1:]:
         from gui import launch
         launch()
         return
     runner = Runner()
+    if "--osd" in sys.argv[1:]:
+        from osd import launch_osd
+        runner.start()
+        try:
+            launch_osd(runner.state)
+        except KeyboardInterrupt:
+            print("Shutting down...")
+        finally:
+            runner.stop()
+        return
     runner.start()
     print("Running. Press Ctrl+C to stop.")
     try:
