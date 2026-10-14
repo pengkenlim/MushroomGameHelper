@@ -1,12 +1,15 @@
 """Vision module: screen capture and frame analysis."""
 
-from typing import Any, Dict, List, Optional, Tuple
+import statistics
+from collections import deque
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
 import cv2
 import mss
 import numpy as np
 
 import config
+from config import BarConfig
 
 Match = Tuple[int, int, float]
 
@@ -22,6 +25,10 @@ class Vision:
             "left": config.CAPTURE_LEFT,
             "width": config.CAPTURE_WIDTH,
             "height": config.CAPTURE_HEIGHT,
+        }
+        self.history: Dict[str, Deque[float]] = {
+            "health": deque(maxlen=config.SMOOTHING_WINDOW),
+            "mana": deque(maxlen=config.SMOOTHING_WINDOW),
         }
         self.templates: Dict[str, np.ndarray] = {}
         for name, path in config.TEMPLATES.items():
@@ -85,24 +92,63 @@ class Vision:
         return matches
 
     @staticmethod
-    def color_mask_pixels(
-        frame: np.ndarray,
-        lower: Tuple[int, int, int],
-        upper: Tuple[int, int, int],
-    ) -> int:
-        """Counts pixels within an HSV range using ``cv2.inRange``.
+    def bar_percent(frame: np.ndarray, bar: BarConfig) -> Optional[float]:
+        """Computes the filled percentage of a bar from one frame.
+
+        Within the ROI, pixels in the "occupied" HSV range (``cv2.inRange``)
+        are counted as ``occupied`` and pixels in the "empty" range as
+        ``empty``. Everything else (borders, text, glow) is treated as
+        background and ignored, so ``percent = 100 * occupied /
+        (occupied + empty)``.
 
         Args:
-            frame: BGR frame.
-            lower: Lower HSV bound.
-            upper: Upper HSV bound.
+            frame: BGR frame of the captured region.
+            bar: Calibration for the bar.
 
         Returns:
-            Number of pixels inside the range.
+            Percentage in [0, 100], or None if neither range matched (e.g.
+            the bar is invisible in this frame) or the ROI is invalid.
         """
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        mask = cv2.inRange(hsv, np.array(lower), np.array(upper))
-        return int(cv2.countNonZero(mask))
+        x, y, w, h = bar.roi
+        roi = frame[max(0, y):y + h, max(0, x):x + w]
+        if roi.size == 0:
+            return None
+        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        occupied = cv2.countNonZero(cv2.inRange(
+            hsv, np.array(bar.full_lower), np.array(bar.full_upper)))
+        empty = cv2.countNonZero(cv2.inRange(
+            hsv, np.array(bar.empty_lower), np.array(bar.empty_upper)))
+        total = occupied + empty
+        return None if total == 0 else 100.0 * occupied / total
+
+    def smoothed_percent(self, key: str, raw: Optional[float]) -> float:
+        """Applies the temporal median filter to a bar percentage.
+
+        Bars flash or change opacity when low, which makes single-frame
+        readings jump (e.g. 20, 100, 20, 100). Keep the last ``N`` readings
+        (``config.SMOOTHING_WINDOW``, 4 frames = 1 s at 250 ms) in a window
+        ``p_1 <= ... <= p_N`` (sorted); the reported value is the median:
+        ``p_((N+1)/2)`` for odd ``N``, or ``(p_(N/2) + p_(N/2+1)) / 2`` for
+        even ``N``. The median ignores up to ``floor((N-1)/2)`` outliers
+        in the window, unlike the mean, so isolated flashes don't shift the
+        result, while a real sustained change takes over after about half the
+        window. Frames with no reading (None) are skipped so an invisible
+        bar neither adds a sample nor triggers a false "low".
+
+        Args:
+            key: ``"health"`` or ``"mana"``.
+            raw: This frame's percentage, or None.
+
+        Returns:
+            Median of the window; 100.0 (not low) if there is no data yet.
+        """
+        window = self.history[key]
+        if window.maxlen != config.SMOOTHING_WINDOW:
+            window = self.history[key] = deque(
+                window, maxlen=config.SMOOTHING_WINDOW)
+        if raw is not None:
+            window.append(raw)
+        return float(statistics.median(window)) if window else 100.0
 
     def analyze(self, frame: np.ndarray) -> Dict[str, Any]:
         """Extracts structured data from a frame.
@@ -112,8 +158,10 @@ class Vision:
 
         Returns:
             Dictionary with ``matches`` (template name -> list of
-            ``(x, y, confidence)``), ``targets_visible`` (bool) and
-            ``health_low`` (bool).
+            ``(x, y, confidence)``), ``targets_visible`` (bool),
+            ``health_percent`` / ``mana_percent`` (smoothed, 0-100) and
+            ``health_low`` / ``mana_low`` (bool, smoothed percent below the
+            configured threshold).
         """
         matches: Dict[str, List[Match]] = {}
         for name, template in self.templates.items():
@@ -121,13 +169,17 @@ class Vision:
                 name, config.MATCH_THRESHOLD
             )
             matches[name] = self.find_template(frame, template, threshold)
-        health_pixels = self.color_mask_pixels(
-            frame, config.HEALTH_BAR_HSV_LOWER, config.HEALTH_BAR_HSV_UPPER
-        )
+        health = self.smoothed_percent(
+            "health", self.bar_percent(frame, config.HEALTH))
+        mana = self.smoothed_percent(
+            "mana", self.bar_percent(frame, config.MANA))
         return {
             "matches": matches,
             "targets_visible": any(matches.values()),
-            "health_low": health_pixels < config.HEALTH_BAR_MIN_PIXELS,
+            "health_percent": health,
+            "mana_percent": mana,
+            "health_low": health < config.HEALTH.threshold_percent,
+            "mana_low": mana < config.MANA.threshold_percent,
         }
 
     def process(self) -> Dict[str, Any]:

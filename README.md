@@ -26,6 +26,22 @@ Edit `CAPTURE_TOP`, `CAPTURE_LEFT`, `CAPTURE_WIDTH`, `CAPTURE_HEIGHT` in
 `config.py` (pixels, primary monitor) so they cover the game window. Adjust
 `MATCH_THRESHOLD`, HSV bounds and `KEYBINDS` as needed.
 
+## Calibrating health and mana bars
+
+```bash
+python calibrator.py
+```
+A screenshot of the configured region opens. For Health, then Mana: drag a box
+around the bar, click the full (occupied) part, click the empty part. Then
+enter the low-% threshold, key and cooldown in the terminal. Results
+(ROIs, HSV ranges ±15 H / ±40 S,V, thresholds, keybinds, cooldowns) are written
+to `calibration.json`, which `config.py` loads at startup (defaults otherwise).
+The GUI also saves its settings there on Stop/close.
+
+Bar percentage = occupied / (occupied + empty) pixels in the ROI, smoothed by
+the median of the last 4 frames to ignore flashing. Each trigger key has a
+cooldown to prevent input spam.
+
 ## Adding template images
 
 1. Crop the sprite from a screenshot at native resolution (no scaling) and save

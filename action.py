@@ -19,6 +19,7 @@ class Action:
         self._keyboard: Controller = Controller()
         self._lock: threading.Lock = threading.Lock()
         self._held: Set[str] = set()
+        self._last_pressed: Dict[str, float] = {}
 
     @staticmethod
     def _resolve(name: str) -> KeyType:
@@ -78,15 +79,46 @@ class Action:
                 self._keyboard.release(self._resolve(name))
             self._held.clear()
 
+    def press_async(
+        self, name: str, duration: float = config.DEFAULT_PRESS_DURATION
+    ) -> None:
+        """Presses a key and releases it later without blocking the caller.
+
+        Args:
+            name: Logical action name or key name.
+            duration: Seconds to hold the key before a timer releases it.
+        """
+        self.hold(name)
+        timer = threading.Timer(duration, self.release, args=(name,))
+        timer.daemon = True
+        timer.start()
+
+    def trigger(self, key: str, cooldown: float) -> bool:
+        """Presses ``key`` unless its cooldown has not elapsed.
+
+        Args:
+            key: Key name to press.
+            cooldown: Minimum seconds since the previous press of ``key``.
+
+        Returns:
+            True if the key was pressed, False if suppressed by cooldown.
+        """
+        now = time.monotonic()
+        with self._lock:
+            last = self._last_pressed.get(key)
+            if last is not None and now - last < cooldown:
+                return False
+            self._last_pressed[key] = now
+        self.press_async(key)
+        return True
+
     def decide(self, snapshot: Dict[str, object]) -> None:
-        """Performs actions based on a state snapshot.
+        """Triggers heal/mana keys from a state snapshot, honoring cooldowns.
 
         Args:
             snapshot: Copy of the shared state produced by the vision thread.
         """
         if snapshot.get("health_low"):
-            self.press("heal")
-        if snapshot.get("targets_visible"):
-            self.hold("right")
-        else:
-            self.release("right")
+            self.trigger(config.HEALTH.keybind, config.HEALTH.cooldown)
+        if snapshot.get("mana_low"):
+            self.trigger(config.MANA.keybind, config.MANA.cooldown)

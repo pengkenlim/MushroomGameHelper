@@ -95,7 +95,16 @@ class App:
         self.runner.stop()
         self.start_btn.config(state=tk.NORMAL)
         self.stop_btn.config(state=tk.DISABLED)
-        self.status.set("Stopped")
+        self.status.set("Stopped (settings saved)")
+        self.save()
+
+    def save(self) -> None:
+        """Persists the current settings to ``calibration.json``."""
+        if self.apply_settings():
+            try:
+                config.save_config()
+            except OSError as exc:
+                self.status.set(f"Save failed: {exc}")
 
     def refresh(self) -> None:
         """Updates the live status display and reschedules itself."""
@@ -103,7 +112,10 @@ class App:
         counts = {k: len(v) for k, v in snap.get("matches", {}).items()}
         self.info.set(
             f"Targets visible: {snap.get('targets_visible')}\n"
-            f"Health low: {snap.get('health_low')}\n"
+            f"Health: {snap.get('health_percent', 0.0):.0f}% "
+            f"(low: {snap.get('health_low')})\n"
+            f"Mana: {snap.get('mana_percent', 0.0):.0f}% "
+            f"(low: {snap.get('mana_low')})\n"
             f"Matches: {counts or '-'}"
         )
         self.root.after(REFRESH_MS, self.refresh)
@@ -111,6 +123,7 @@ class App:
     def on_close(self) -> None:
         """Stops threads (releasing keys) and closes the window."""
         self.runner.stop()
+        self.save()
         self.root.destroy()
 
 
