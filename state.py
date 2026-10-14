@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 
 
 PENDING_BUFF_PRESSES: str = "pending_buff_presses"
+LOOTING_ACTIVE: str = "looting_active"
 
 
 class SharedState:
@@ -15,11 +16,13 @@ class SharedState:
         """Initializes the state.
 
         Args:
-            initial: Optional initial key/value pairs.
+            initial: Optional initial key/value pairs. ``looting_active``
+                defaults to ``False``.
         """
         self._lock: threading.Lock = threading.Lock()
         self._data: Dict[str, Any] = dict(initial or {})
         self._data.setdefault(PENDING_BUFF_PRESSES, [])
+        self._data.setdefault(LOOTING_ACTIVE, False)
 
     def get(self, key: str, default: Any = None) -> Any:
         """Returns the value for ``key`` or ``default`` if absent.

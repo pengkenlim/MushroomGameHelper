@@ -48,6 +48,24 @@ class BarConfig:
 
 
 @dataclass
+class LootingConfig:
+    """Hold-and-retrigger looting configuration.
+
+    Attributes:
+        keybind: Key held down while looting is active (e.g. ``"x"``).
+        retrigger_interval: Seconds after which the held key is released and
+            re-held so the game does not ignore a long-held key.
+        toggle_key_1: First key of the on/off chord (e.g. ``"ctrl"``).
+        toggle_key_2: Second key of the on/off chord (e.g. ``"l"``).
+    """
+
+    keybind: str = "x"
+    retrigger_interval: float = 5.0
+    toggle_key_1: str = "ctrl"
+    toggle_key_2: str = "l"
+
+
+@dataclass
 class Config:
     """Complete persisted configuration."""
 
@@ -62,6 +80,7 @@ class Config:
             keybind="m",
         )
     )
+    looting: LootingConfig = field(default_factory=LootingConfig)
 
 
 @dataclass
@@ -127,6 +146,32 @@ def _bar_from_dict(data: Dict[str, Any], default: BarConfig) -> BarConfig:
     )
 
 
+def _looting_from_dict(data: Any, default: LootingConfig) -> LootingConfig:
+    """Builds a :class:`LootingConfig`, falling back to ``default`` per field.
+
+    Args:
+        data: Parsed JSON object for the looting section.
+        default: Defaults used for missing/invalid fields.
+
+    Returns:
+        The resulting looting configuration.
+
+    Raises:
+        ValueError: If ``retrigger_interval`` is not a positive finite number.
+    """
+    if not isinstance(data, dict):
+        return default
+    interval = float(data.get("retrigger_interval", default.retrigger_interval))
+    if not 0.0 < interval < float("inf"):
+        raise ValueError("retrigger_interval must be a positive number")
+    return LootingConfig(
+        keybind=str(data.get("keybind", default.keybind)),
+        retrigger_interval=interval,
+        toggle_key_1=str(data.get("toggle_key_1", default.toggle_key_1)),
+        toggle_key_2=str(data.get("toggle_key_2", default.toggle_key_2)),
+    )
+
+
 def load_config(path: Path = CALIBRATION_PATH) -> Config:
     """Loads configuration from JSON, falling back to defaults.
 
@@ -153,6 +198,7 @@ def load_config(path: Path = CALIBRATION_PATH) -> Config:
                 data.get("match_threshold", default.match_threshold)),
             health=_bar_from_dict(data.get("health", {}), default.health),
             mana=_bar_from_dict(data.get("mana", {}), default.mana),
+            looting=_looting_from_dict(data.get("looting"), default.looting),
         )
     except (ValueError, TypeError, AttributeError, OSError):
         return default
@@ -234,6 +280,9 @@ TEMPLATE_THRESHOLDS: Dict[str, float] = {}
 HEALTH: BarConfig = _loaded.health
 MANA: BarConfig = _loaded.mana
 
+# Looting hold-and-retrigger.
+LOOTING: LootingConfig = _loaded.looting
+
 # Other keybinds (pynput key names or single characters).
 KEYBINDS: Dict[str, str] = {
     "left": "left",
@@ -264,6 +313,7 @@ def current_config() -> Config:
         match_threshold=MATCH_THRESHOLD,
         health=HEALTH,
         mana=MANA,
+        looting=LOOTING,
     )
 
 

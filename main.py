@@ -6,7 +6,7 @@ import time
 from typing import Callable, List
 
 import config
-from action import Action
+from action import Action, KeyComboListener
 from scheduler import Scheduler
 from state import SharedState
 from vision import Vision
@@ -44,6 +44,7 @@ class Runner:
         self._vision: Vision | None = None
         self._action: Action | None = None
         self._scheduler: Scheduler | None = None
+        self._combo_listener: KeyComboListener | None = None
 
     @property
     def running(self) -> bool:
@@ -60,6 +61,9 @@ class Runner:
         scheduler = self._scheduler = Scheduler()
         state = self.state
         state.clear_buff_presses()
+        state.set("looting_active", False)
+        listener = self._combo_listener = KeyComboListener(state)
+        listener.start()
 
         def vision_step() -> None:
             state.update(vision.process())
@@ -92,9 +96,13 @@ class Runner:
         if not self.running:
             return
         self._stop.set()
+        if self._combo_listener is not None:
+            self._combo_listener.stop()
+            self._combo_listener = None
         for thread in self._threads:
             thread.join(timeout=2.0)
         self._threads = []
+        self.state.set("looting_active", False)
         if self._action is not None:
             self._action.release_all()
         if self._vision is not None:
