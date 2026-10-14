@@ -80,16 +80,16 @@ class Runner:
         if self.running:
             return
         logger.info(f"Bot session starting. Config: {config_summary()}")
-        if config.CAPTURE_WINDOW_TITLE:
-            bounds = get_window_bounds(config.CAPTURE_WINDOW_TITLE)
+        if config.WINDOW_TITLE:
+            bounds = get_window_bounds(config.WINDOW_TITLE)
             if bounds is None:
                 logger.warning(
-                    f"Window '{config.CAPTURE_WINDOW_TITLE}' not found; "
+                    f"Window '{config.WINDOW_TITLE}' not found; "
                     "falling back to static capture coordinates")
             else:
                 logger.info(
-                    f"Window '{config.CAPTURE_WINDOW_TITLE}' found: {bounds}")
-        self._stop = threading.Event()
+                    f"Window '{config.WINDOW_TITLE}' found: {bounds}")
+        stop_event = self._stop = threading.Event()
         vision = self._vision = Vision()
         action = self._action = Action()
         scheduler = self._scheduler = Scheduler()
@@ -102,6 +102,13 @@ class Runner:
         def vision_step() -> None:
             state.update(vision.process())
 
+        def vision_worker() -> None:
+            # mss handles are thread-local: create and close them on this thread.
+            try:
+                run_loop(vision_step, config.VISION_INTERVAL, stop_event)
+            finally:
+                vision.close()
+
         def action_step() -> None:
             action.run_cycle(state)
 
@@ -112,9 +119,7 @@ class Runner:
             state.set("schedule_status", scheduler.status())
 
         self._threads = [
-            threading.Thread(
-                target=run_loop, name="vision", daemon=True,
-                args=(vision_step, config.VISION_INTERVAL, self._stop)),
+            threading.Thread(target=vision_worker, name="vision", daemon=True),
             threading.Thread(
                 target=run_loop, name="action", daemon=True,
                 args=(action_step, config.ACTION_INTERVAL, self._stop)),
@@ -122,25 +127,36 @@ class Runner:
                 target=run_loop, name="scheduler", daemon=True,
                 args=(scheduler_step, config.SCHEDULER_INTERVAL, self._stop)),
         ]
-        for thread in self._threads:
-            thread.start()
+        try:
+            for thread in self._threads:
+                thread.start()
+        except BaseException:
+            self.stop()  # never leave the listener or started threads behind
+            raise
 
     def stop(self) -> None:
-        """Stops the threads, releases held keys and capture handles."""
+        """Stops the threads and listener and releases held keys.
+
+        The vision thread closes its own ``mss`` handle when its loop ends.
+        """
         if not self.running:
             return
         self._stop.set()
-        if self._combo_listener is not None:
-            self._combo_listener.stop()
-            self._combo_listener = None
-        for thread in self._threads:
-            thread.join(timeout=2.0)
-        self._threads = []
-        self.state.set("looting_active", False)
-        if self._action is not None:
-            self._action.release_all()
-        if self._vision is not None:
-            self._vision.close()
+        try:
+            if self._combo_listener is not None:
+                self._combo_listener.stop()
+                self._combo_listener = None
+            for thread in self._threads:
+                if thread.ident is None or thread is threading.current_thread():
+                    continue  # never started / called from itself
+                thread.join(timeout=2.0)
+                if thread.is_alive():
+                    logger.warning(f"Thread '{thread.name}' did not stop in time")
+        finally:
+            self._threads = []
+            self.state.set("looting_active", False)
+            if self._action is not None:
+                self._action.release_all()
         logger.info("Bot session stopped gracefully")
 
 

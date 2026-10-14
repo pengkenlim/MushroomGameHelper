@@ -90,10 +90,8 @@ class KeyComboListener:
     def toggle_looting(self) -> None:
         """Atomically flips ``looting_active`` in the shared state."""
         with self._toggle_lock:
-            current_state = bool(self._state.get("looting_active", False))
-            self._state.update({"looting_active": not current_state})
-            logger.info(
-                f"Looting toggled: looting_active={not current_state}")
+            new_state = self._state.toggle("looting_active")
+            logger.info(f"Looting toggled: looting_active={new_state}")
 
     def on_press(self, key: Union[Key, KeyCode, None]) -> None:
         """Records a key press and fires the callback on a full chord.
@@ -112,7 +110,11 @@ class KeyComboListener:
             else:
                 fire = False
         if fire:
-            self._callback()
+            try:
+                self._callback()
+            except Exception as exc:  # an exception would kill the listener
+                logger.error(f"Looting toggle callback failed: {exc}",
+                             exc_info=True)
 
     def on_release(self, key: Union[Key, KeyCode, None]) -> None:
         """Forgets a released key.
@@ -137,9 +139,11 @@ class KeyComboListener:
 
     def stop(self) -> None:
         """Stops listening and forgets any pressed keys."""
-        if self._listener is not None:
-            self._listener.stop()
-            self._listener = None
+        listener, self._listener = self._listener, None
+        if listener is not None:
+            listener.stop()
+            if listener is not threading.current_thread():
+                listener.join(timeout=1.0)  # do not leave a zombie thread
         with self._pressed_lock:
             self._pressed.clear()
 
@@ -208,11 +212,26 @@ class Action:
                 self._held.discard(name)
 
     def release_all(self) -> None:
-        """Releases every held key."""
+        """Releases every held key (one failure never skips the others)."""
         with self._lock:
             for name in list(self._held):
-                self._keyboard.release(self._resolve(name))
+                try:
+                    self._keyboard.release(self._resolve(name))
+                except Exception as exc:
+                    logger.error(f"Failed to release '{name}': {exc}")
             self._held.clear()
+
+    def is_held(self, name: str) -> bool:
+        """Tells whether a key is currently held.
+
+        Args:
+            name: Logical action name or key name.
+
+        Returns:
+            True if the key is in the held set.
+        """
+        with self._lock:
+            return name in self._held
 
     def press_async(
         self, name: str, duration: float = config.DEFAULT_PRESS_DURATION
@@ -304,7 +323,7 @@ class Action:
         """
         looting_key = config.LOOTING.keybind
         active = bool(snapshot.get("looting_active", False))
-        held = looting_key in self._held
+        held = self.is_held(looting_key)
         if not active:
             if held:
                 self.release(looting_key)

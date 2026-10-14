@@ -17,6 +17,7 @@ import numpy as np
 
 import config
 from config import HSV, BarConfig, Roi
+from window_manager import get_window_bounds
 
 WINDOW: str = "Calibrator"
 HUE_TOLERANCE: int = 15
@@ -237,13 +238,30 @@ def ask_key(prompt: str) -> str:
 
 
 def capture_screenshot() -> np.ndarray:
-    """Grabs one BGR screenshot of the configured region.
+    """Grabs one BGR screenshot of the game window or the static region.
+
+    If ``config.WINDOW_TITLE`` is set and the window is found, its current
+    bounds are used and written into the ``config.CAPTURE_*`` values, so the
+    saved ``calibration.json`` records the window geometry that was calibrated
+    (the vision thread warns when the window size later differs). Otherwise
+    the static ``config.CAPTURE_*`` region is used.
 
     Returns:
         Image array of shape (height, width, 3).
     """
     region = {"top": config.CAPTURE_TOP, "left": config.CAPTURE_LEFT,
               "width": config.CAPTURE_WIDTH, "height": config.CAPTURE_HEIGHT}
+    if config.WINDOW_TITLE:
+        bounds = get_window_bounds(config.WINDOW_TITLE)
+        if bounds is None:
+            print(f"Window '{config.WINDOW_TITLE}' not found or minimized; "
+                  "using the static capture region instead.")
+        else:
+            region = bounds
+            config.CAPTURE_TOP = bounds["top"]
+            config.CAPTURE_LEFT = bounds["left"]
+            config.CAPTURE_WIDTH = bounds["width"]
+            config.CAPTURE_HEIGHT = bounds["height"]
     with mss.mss() as sct:
         return cv2.cvtColor(np.array(sct.grab(region)), cv2.COLOR_BGRA2BGR)
 
@@ -265,6 +283,8 @@ def run_window(session: CalibrationSession) -> bool:
             key = cv2.waitKey(20) & 0xFF
             if key in (ord("q"), 27):
                 return False
+            if cv2.getWindowProperty(WINDOW, cv2.WND_PROP_VISIBLE) < 1:
+                return False  # window closed via the title-bar button
             if key == ord("r"):
                 session.redo()
         return True

@@ -1,6 +1,7 @@
 """Typed configuration, optionally loaded from ``calibration.json``."""
 
 import json
+import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -108,6 +109,9 @@ class BuffSchedule:
         self.name = str(self.name).strip()
         self.keybind = str(self.keybind).strip()
         self.interval_seconds = float(self.interval_seconds)
+        if isinstance(self.enabled, str):  # bool("false") would be True
+            self.enabled = self.enabled.strip().lower() not in (
+                "false", "0", "no", "off", "")
         self.enabled = bool(self.enabled)
         if not self.name:
             raise ValueError("name must not be empty")
@@ -115,6 +119,18 @@ class BuffSchedule:
             raise ValueError("keybind must not be empty")
         if not 0.0 < self.interval_seconds < float("inf"):
             raise ValueError("interval_seconds must be a positive number")
+
+
+def _atomic_write(path: Path, text: str) -> None:
+    """Writes ``text`` so readers never observe a partially written file.
+
+    Args:
+        path: Destination file.
+        text: Full file content.
+    """
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def _tuple(value: Any, default: Tuple[int, ...]) -> Tuple[int, ...]:
@@ -173,6 +189,24 @@ def _looting_from_dict(data: Any, default: LootingConfig) -> LootingConfig:
     )
 
 
+def _safe_looting(data: Any, default: LootingConfig) -> LootingConfig:
+    """Like :func:`_looting_from_dict` but falls back to ``default`` on error.
+
+    A bad looting section must not discard the calibration of everything else.
+
+    Args:
+        data: Parsed JSON value of the looting section.
+        default: Defaults used when the section is invalid.
+
+    Returns:
+        The looting configuration.
+    """
+    try:
+        return _looting_from_dict(data, default)
+    except (ValueError, TypeError, OverflowError):
+        return default
+
+
 def load_config(path: Path = CALIBRATION_PATH) -> Config:
     """Loads configuration from JSON, falling back to defaults.
 
@@ -201,9 +235,9 @@ def load_config(path: Path = CALIBRATION_PATH) -> Config:
                 data.get("match_threshold", default.match_threshold)),
             health=_bar_from_dict(data.get("health", {}), default.health),
             mana=_bar_from_dict(data.get("mana", {}), default.mana),
-            looting=_looting_from_dict(data.get("looting"), default.looting),
+            looting=_safe_looting(data.get("looting"), default.looting),
         )
-    except (ValueError, TypeError, AttributeError, OSError):
+    except (ValueError, TypeError, AttributeError, OSError, OverflowError):
         return default
 
 
@@ -237,7 +271,8 @@ def load_schedules(path: Path = SCHEDULES_PATH) -> List[BuffSchedule]:
                 interval_seconds=item["interval_seconds"],
                 enabled=item.get("enabled", True),
             )
-        except (KeyError, ValueError, TypeError, AttributeError):
+        except (KeyError, ValueError, TypeError, AttributeError,
+                OverflowError):
             continue
         if schedule.name not in seen:
             seen.add(schedule.name)
@@ -254,7 +289,7 @@ def save_schedules(schedules: List[BuffSchedule],
         path: Destination file.
     """
     payload = {"schedules": [asdict(s) for s in schedules]}
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    _atomic_write(path, json.dumps(payload, indent=2))
 
 
 _loaded: Config = load_config()
@@ -265,12 +300,14 @@ CAPTURE_LEFT: int = _loaded.capture.left
 CAPTURE_WIDTH: int = _loaded.capture.width
 CAPTURE_HEIGHT: int = _loaded.capture.height
 
-# Optional game window title (substring, case-insensitive). When non-empty the
-# capture region follows the window; the static values above are the fallback.
-CAPTURE_WINDOW_TITLE: str = _loaded.capture.window_title
+# Optional game window title (exact match preferred, else case-insensitive
+# substring). Empty means static coordinates. When non-empty the capture region
+# follows the window; the static values above are the fallback. Persisted as
+# ``capture.window_title`` in calibration.json.
+WINDOW_TITLE: str = _loaded.capture.window_title
 
 # Seconds between window-bounds re-checks while running (0 disables).
-WINDOW_REFRESH_INTERVAL: float = 2.0
+WINDOW_REFRESH_INTERVAL: float = 5.0
 
 # Loop intervals (seconds).
 VISION_INTERVAL: float = 0.25  # ~4 FPS
@@ -320,7 +357,7 @@ def current_config() -> Config:
     return Config(
         capture=CaptureRegion(CAPTURE_TOP, CAPTURE_LEFT,
                               CAPTURE_WIDTH, CAPTURE_HEIGHT,
-                              CAPTURE_WINDOW_TITLE),
+                              WINDOW_TITLE),
         match_threshold=MATCH_THRESHOLD,
         health=HEALTH,
         mana=MANA,
@@ -334,5 +371,4 @@ def save_config(path: Path = CALIBRATION_PATH) -> None:
     Args:
         path: Destination file.
     """
-    path.write_text(json.dumps(asdict(current_config()), indent=2),
-                    encoding="utf-8")
+    _atomic_write(path, json.dumps(asdict(current_config()), indent=2))

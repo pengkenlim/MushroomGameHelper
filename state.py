@@ -68,12 +68,32 @@ class SharedState:
     def append_buff_press(self, keybind: str) -> None:
         """Queues a scheduled buff keybind for the action thread.
 
+        A keybind that is already queued is not queued again, so the queue is
+        bounded by the number of distinct keybinds even if the action thread
+        stalls (a backlog of identical presses would otherwise be fired in a
+        burst once it recovers).
+
         Args:
             keybind: Key to be pressed by the action thread.
         """
         with self._lock:
             pending: List[str] = self._data[PENDING_BUFF_PRESSES]
-            pending.append(keybind)
+            if keybind not in pending:
+                pending.append(keybind)
+
+    def toggle(self, key: str) -> bool:
+        """Atomically flips a boolean entry.
+
+        Args:
+            key: State key holding a boolean (missing counts as ``False``).
+
+        Returns:
+            The new value.
+        """
+        with self._lock:
+            value = not bool(self._data.get(key, False))
+            self._data[key] = value
+            return value
 
     def clear_buff_presses(self) -> None:
         """Discards all pending scheduled buff presses."""
