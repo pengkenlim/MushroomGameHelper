@@ -220,3 +220,6 @@ found are skipped rather than treated as 0%.
 - **Permissions:** on macOS and Wayland, input simulation and screen capture
   may be blocked; use an X11 session on Linux.
 - Use responsibly and only in games whose terms permit automation.
+A project to learn `Tkinter`, `mss`, `OpenCV`, `pynput` and GitHub Copilot agentic capabilities.
+
+An excuse to make my life easier in a certain mushroom game. * WINK WINK *
