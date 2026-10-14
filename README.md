@@ -341,11 +341,13 @@ LOOTING_RETRIGGER_GAP = 0.05
 
 ### The overlay: `--osd`
 
+Launch it with:
+
 ```bash
 python main.py --osd
 ```
 
-This starts the bot threads (without the main GUI) and shows a small, borderless, semi-transparent (80 % opacity), always-on-top box at the top-left of the screen:
+This starts the bot threads (without the main GUI) and shows a small, borderless, semi-transparent always-on-top box at the top-left of the screen:
 
 ```text
 HP: 85%
@@ -354,7 +356,11 @@ Looting: OFF
 Active Buffs: [Attack Buff [f1]]
 ```
 
-It refreshes 4 times per second and is **read-only**. Close it with **Esc** (while it has focus) or **Ctrl+C** in the terminal; held keys are released either way.
+- On Windows, click-through is enabled by default via `CLICK_THROUGH = True` in `osd.py`, and the overlay must be closed with **Ctrl+C** in the terminal.
+- To close the overlay with **Esc** instead, set `CLICK_THROUGH = False` in `osd.py`; the overlay will then intercept mouse clicks over its area.
+- Transparency is controlled by `ALPHA = 0.8` in `osd.py`.
+
+It refreshes 4 times per second and is **read-only**. Held keys are released when the session exits.
 
 ![OSD Screenshot](docs/osd.png)
 
