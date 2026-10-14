@@ -22,6 +22,18 @@ _MODIFIER_ALIASES: Dict[str, str] = {
 }
 
 
+def normalize_key_name(name: str) -> str:
+    """Maps left/right modifier variants onto their base name.
+
+    Args:
+        name: A ``pynput`` key name such as ``"ctrl_l"``.
+
+    Returns:
+        The base name (``"ctrl"``), or ``name`` unchanged for non-modifiers.
+    """
+    return _MODIFIER_ALIASES.get(name, name)
+
+
 def normalize_key(key: Union[Key, KeyCode, None]) -> Optional[str]:
     """Converts a pynput key event into a lowercase logical key name.
 
@@ -79,8 +91,10 @@ class KeyComboListener:
                 :meth:`toggle_looting`.
         """
         self._state: SharedState = state
-        self._key1: str = (key1 or config.LOOTING.toggle_key_1).strip().lower()
-        self._key2: str = (key2 or config.LOOTING.toggle_key_2).strip().lower()
+        self._key1: str = normalize_key_name(
+            (key1 or config.LOOTING_TOGGLE_KEY_1).strip().lower())
+        self._key2: str = normalize_key_name(
+            (key2 or config.LOOTING_TOGGLE_KEY_2).strip().lower())
         self._callback: Callable[[], None] = callback or self.toggle_looting
         self._pressed: Set[str] = set()
         self._pressed_lock: threading.Lock = threading.Lock()
@@ -99,8 +113,8 @@ class KeyComboListener:
         Args:
             key: Key reported by ``pynput``.
         """
-        name = normalize_key(key)
-        if name is None:
+        name = normalize_key_name(normalize_key(key) or "")
+        if not name:
             return
         with self._pressed_lock:
             self._pressed.add(name)
@@ -122,8 +136,8 @@ class KeyComboListener:
         Args:
             key: Key reported by ``pynput``.
         """
-        name = normalize_key(key)
-        if name is None:
+        name = normalize_key_name(normalize_key(key) or "")
+        if not name:
             return
         with self._pressed_lock:
             self._pressed.discard(name)
@@ -159,6 +173,7 @@ class Action:
         self._last_pressed: Dict[str, float] = {}
         self._last_buff_input: float | None = None
         self._loot_retrigger_time: float = 0.0
+        self._loot_last_hold: Optional[float] = None
 
     @staticmethod
     def _resolve(name: str) -> KeyType:
@@ -259,6 +274,10 @@ class Action:
         Returns:
             True if the key was pressed, False if suppressed by cooldown.
         """
+        if key == config.LOOTING_KEYBIND.strip() and config.LOOTING_KEYBIND:
+            logger.warning(
+                f"Refusing to tap '{key}': it is the looting hold key.")
+            return False
         now = time.perf_counter()
         with self._lock:
             last = self._last_pressed.get(key)
@@ -295,6 +314,10 @@ class Action:
             keybinds: Keys to press, in order.
         """
         for keybind in keybinds:
+            if keybind == config.LOOTING_KEYBIND.strip() and config.LOOTING_KEYBIND:
+                logger.warning(
+                    f"Skipping buff key '{keybind}': it is the looting hold key.")
+                continue
             if self._last_buff_input is not None:
                 wait = (config.BUFF_INPUT_COOLDOWN
                         - (time.perf_counter() - self._last_buff_input))
@@ -305,37 +328,42 @@ class Action:
             finally:
                 self._last_buff_input = time.perf_counter()
 
-    def manage_looting(self, snapshot: Dict[str, Any]) -> None:
-        """Holds the looting key while looting is active, re-triggering it.
+    def manage_looting(self, looting_active: bool) -> None:
+        """Holds the looting key, re-triggering it on a fixed interval.
 
-        Games may ignore a key that has been held down for a long time. While
-        looting is active the key is therefore held permanently, but once
-        ``config.LOOTING.retrigger_interval`` seconds have passed since it was
-        (re)pressed it is released, given 50 ms for the game to register the
-        release, and held again; the interval timer is then restarted. When
-        looting is switched off the key is released immediately.
-
-        Only this method touches the physical key; the toggle listener merely
-        updates ``looting_active`` in the shared state.
+        Game engines commonly stop responding to a key that has been held
+        for too long. To defeat this the key is released and pressed again
+        every ``config.LOOTING_RETRIGGER_INTERVAL`` seconds, with a short
+        ``config.LOOTING_RETRIGGER_GAP`` pause so the engine sees two
+        distinct events. When looting is inactive the key is released and
+        the retrigger clock is reset.
 
         Args:
-            snapshot: Copy of the shared state containing ``looting_active``.
+            looting_active: Current toggle state from ``SharedState``.
         """
-        looting_key = config.LOOTING.keybind
-        active = bool(snapshot.get("looting_active", False))
-        held = self.is_held(looting_key)
-        if not active:
-            if held:
-                self.release(looting_key)
-        elif not held:
-            self.hold(looting_key)
-            self._loot_retrigger_time = time.perf_counter()
-        elif (time.perf_counter() - self._loot_retrigger_time
-              > config.LOOTING.retrigger_interval):
-            self.release(looting_key)
-            time.sleep(0.05)
-            self.hold(looting_key)
-            self._loot_retrigger_time = time.perf_counter()
+        keybind = config.LOOTING_KEYBIND.strip()
+        if not keybind:
+            return
+        if not looting_active:
+            self.release(keybind)
+            self._loot_last_hold = None
+            return
+        now = time.perf_counter()
+        with self._lock:
+            is_held = keybind in self._held
+        if not is_held:
+            self.hold(keybind)
+            self._loot_last_hold = now
+            logger.info(f"Looting: holding '{keybind}'")
+            return
+        if (self._loot_last_hold is not None
+                and now - self._loot_last_hold
+                >= config.LOOTING_RETRIGGER_INTERVAL):
+            self.release(keybind)
+            time.sleep(config.LOOTING_RETRIGGER_GAP)
+            self.hold(keybind)
+            self._loot_last_hold = time.perf_counter()
+            logger.debug(f"Looting: re-triggered '{keybind}'")
 
     def run_cycle(self, state: SharedState) -> None:
         """Runs one action cycle: scheduled buffs first, then reactive keys.
@@ -346,5 +374,6 @@ class Action:
         pending = state.drain_buff_presses()
         if pending:
             self.execute_buff_presses(pending)
-        self.decide(state.snapshot())
-        self.manage_looting(state.snapshot())
+        snapshot = state.snapshot()
+        self.manage_looting(bool(snapshot.get("looting_active", False)))
+        self.decide(snapshot)

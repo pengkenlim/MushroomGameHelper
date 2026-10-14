@@ -347,6 +347,18 @@ BUFF_INPUT_COOLDOWN: float = 0.15
 # How long (seconds) a tap-style key is held.
 DEFAULT_PRESS_DURATION: float = 0.05
 
+# --- Looting: hold a key down, re-triggering to defeat engine ignore-timers
+# Keybind to hold. Empty string disables the feature entirely.
+LOOTING_KEYBIND: str = ""
+# Seconds the key stays held before it is released and re-pressed.
+LOOTING_RETRIGGER_INTERVAL: float = 5.0
+# Both keys must be held simultaneously to toggle looting on/off.
+LOOTING_TOGGLE_KEY_1: str = "ctrl"
+LOOTING_TOGGLE_KEY_2: str = "l"
+# Gap (seconds) between the release and the re-press, so the game engine
+# registers two distinct key events.
+LOOTING_RETRIGGER_GAP: float = 0.05
+
 
 def current_config() -> Config:
     """Builds a :class:`Config` from the current module-level values.
