@@ -300,12 +300,14 @@ CAPTURE_LEFT: int = _loaded.capture.left
 CAPTURE_WIDTH: int = _loaded.capture.width
 CAPTURE_HEIGHT: int = _loaded.capture.height
 
-# Optional game window title (substring, case-insensitive). When non-empty the
-# capture region follows the window; the static values above are the fallback.
-CAPTURE_WINDOW_TITLE: str = _loaded.capture.window_title
+# Optional game window title (exact match preferred, else case-insensitive
+# substring). Empty means static coordinates. When non-empty the capture region
+# follows the window; the static values above are the fallback. Persisted as
+# ``capture.window_title`` in calibration.json.
+WINDOW_TITLE: str = _loaded.capture.window_title
 
 # Seconds between window-bounds re-checks while running (0 disables).
-WINDOW_REFRESH_INTERVAL: float = 2.0
+WINDOW_REFRESH_INTERVAL: float = 5.0
 
 # Loop intervals (seconds).
 VISION_INTERVAL: float = 0.25  # ~4 FPS
@@ -355,7 +357,7 @@ def current_config() -> Config:
     return Config(
         capture=CaptureRegion(CAPTURE_TOP, CAPTURE_LEFT,
                               CAPTURE_WIDTH, CAPTURE_HEIGHT,
-                              CAPTURE_WINDOW_TITLE),
+                              WINDOW_TITLE),
         match_threshold=MATCH_THRESHOLD,
         health=HEALTH,
         mana=MANA,

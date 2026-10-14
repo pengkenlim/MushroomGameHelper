@@ -33,8 +33,9 @@ class Vision:
             "height": config.CAPTURE_HEIGHT,
         }
         self._window_found: Optional[bool] = None
+        self._warned_size: Optional[Tuple[int, int]] = None
         self._last_refresh: float = time.perf_counter()
-        if config.CAPTURE_WINDOW_TITLE:
+        if config.WINDOW_TITLE:
             self.refresh_region()
         self.history: Dict[str, Deque[float]] = {
             "health": deque(maxlen=config.SMOOTHING_WINDOW),
@@ -51,7 +52,7 @@ class Vision:
     def refresh_region(self) -> bool:
         """Re-fetches the game window bounds into ``self.region``.
 
-        Does nothing if ``config.CAPTURE_WINDOW_TITLE`` is empty. If the window
+        Does nothing if ``config.WINDOW_TITLE`` is empty. If the window
         cannot be found the current region is kept (initially the static
         ``CAPTURE_*`` values), so capture never breaks. Messages are only
         logged when the found/not-found state changes.
@@ -59,10 +60,17 @@ class Vision:
         Returns:
             True if the region was updated from a window.
         """
-        title = config.CAPTURE_WINDOW_TITLE
+        title = config.WINDOW_TITLE
         if not title:
             return False
-        bounds = get_window_bounds(title)
+        try:
+            bounds = get_window_bounds(title)
+        except Exception as exc:  # never let the vision thread die here
+            logger.warning(f"Window lookup raised unexpectedly: {exc}")
+            bounds = None
+        if bounds is not None and (bounds["width"] <= 0
+                                   or bounds["height"] <= 0):
+            bounds = None  # never adopt an invalid region
         if bounds is None:
             if self._window_found is not False:
                 logger.warning(
@@ -75,7 +83,30 @@ class Vision:
             print(f"Capture region set from window '{title}': {bounds}")
         self._window_found = True
         self.region = bounds
+        self._warn_if_resized(bounds)
         return True
+
+    def _warn_if_resized(self, bounds: Dict[str, int]) -> None:
+        """Warns (once per size) if the window size differs from calibration.
+
+        The bar ROIs are pixel offsets inside the capture, so a different
+        window size (e.g. a changed in-game resolution) misaligns them.
+        ``config.CAPTURE_WIDTH/HEIGHT`` hold the size seen at calibration.
+
+        Args:
+            bounds: Newly acquired window bounds.
+        """
+        size = (bounds["width"], bounds["height"])
+        if size == (config.CAPTURE_WIDTH, config.CAPTURE_HEIGHT):
+            self._warned_size = None
+            return
+        if size != self._warned_size:
+            self._warned_size = size
+            logger.warning(
+                f"Window size {size[0]}x{size[1]} differs from the size at "
+                f"calibration ({config.CAPTURE_WIDTH}x{config.CAPTURE_HEIGHT})"
+                "; bar positions may be misaligned. Recalibrate if readings "
+                "look wrong.")
 
     def capture(self) -> np.ndarray:
         """Grabs the capture region.
@@ -267,7 +298,7 @@ class Vision:
             The structured result of :meth:`analyze`.
         """
         interval = config.WINDOW_REFRESH_INTERVAL
-        if config.CAPTURE_WINDOW_TITLE and interval > 0:
+        if config.WINDOW_TITLE and interval > 0:
             now = time.perf_counter()
             if now - self._last_refresh >= interval:
                 self._last_refresh = now

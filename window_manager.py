@@ -1,8 +1,10 @@
 """Window manager module: locates the game window by its title."""
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from logger import logger
+
+Bounds = Dict[str, int]
 
 
 def _is_usable(win: Any) -> bool:
@@ -19,22 +21,72 @@ def _is_usable(win: Any) -> bool:
     return int(win.width) > 0 and int(win.height) > 0
 
 
-def get_window_bounds(window_title: str) -> Optional[Dict[str, int]]:
-    """Finds a window whose title contains ``window_title`` (case-insensitive).
+def get_screen_bounds() -> Optional[Bounds]:
+    """Returns the bounds of the whole virtual screen (all monitors).
 
-    ``pygetwindow`` is imported lazily because it raises on unsupported
-    platforms (e.g. Linux) at import time. Every failure mode degrades to
-    ``None`` so callers can fall back to the static capture region.
-
-    Args:
-        window_title: Substring to search for in window titles.
+    Uses ``mss`` monitor 0, the union of every monitor, so a game on a
+    secondary monitor is not clamped away. It contains the primary monitor.
 
     Returns:
-        ``{"top", "left", "width", "height"}`` of the first matching,
-        non-minimized window, or None if there is no match, the title is empty
-        or window lookup is unavailable.
+        ``{"top", "left", "width", "height"}``, or None if unavailable.
     """
-    needle = window_title.strip().lower()
+    try:
+        import mss
+        with mss.mss() as sct:
+            mon = sct.monitors[0]
+            return {"top": int(mon["top"]), "left": int(mon["left"]),
+                    "width": int(mon["width"]), "height": int(mon["height"])}
+    except Exception as exc:  # mss raises various errors without a display
+        logger.warning(f"Could not read screen size from mss: {exc}")
+        return None
+
+
+def clamp_to_screen(bounds: Bounds, screen: Bounds) -> Optional[Bounds]:
+    """Intersects window bounds with the screen rectangle.
+
+    A window dragged partly off-screen is cropped to the visible part; one
+    that is entirely off-screen (e.g. the ``-32000`` coordinates Windows
+    reports for minimized windows) yields None.
+
+    Args:
+        bounds: Window ``top``/``left``/``width``/``height``.
+        screen: Screen ``top``/``left``/``width``/``height``.
+
+    Returns:
+        The visible part of the window, or None if it has no visible area.
+    """
+    left = max(bounds["left"], screen["left"])
+    top = max(bounds["top"], screen["top"])
+    right = min(bounds["left"] + bounds["width"],
+                screen["left"] + screen["width"])
+    bottom = min(bounds["top"] + bounds["height"],
+                 screen["top"] + screen["height"])
+    if right - left <= 0 or bottom - top <= 0:
+        return None
+    return {"top": top, "left": left,
+            "width": right - left, "height": bottom - top}
+
+
+def get_window_bounds(title: str) -> Optional[Bounds]:
+    """Finds the game window and returns its bounds clamped to the screen.
+
+    An exact (case-insensitive) title match is preferred; otherwise the first
+    window whose title contains ``title`` is used. ``pygetwindow`` is imported
+    lazily because it raises on unsupported platforms at import time, and
+    every call into it is guarded because the library is fragile across
+    operating systems. Every failure mode degrades to ``None`` so callers can
+    keep the last good region or fall back to the static coordinates.
+
+    Args:
+        title: Window title (or part of it) to look for.
+
+    Returns:
+        ``{"top", "left", "width", "height"}`` of the visible part of the
+        window, or None if the title is empty, there is no match, the window
+        is minimized (width/height <= 0), completely off-screen, or window
+        lookup is unavailable.
+    """
+    needle = title.strip().lower()
     if not needle:
         return None
     try:
@@ -42,11 +94,42 @@ def get_window_bounds(window_title: str) -> Optional[Dict[str, int]]:
     except (ImportError, NotImplementedError) as exc:
         logger.warning(f"pygetwindow unavailable: {exc}")
         return None
+    except Exception as exc:
+        logger.warning(f"pygetwindow failed to load: {exc}")
+        return None
     try:
-        for win in gw.getAllWindows():
-            if needle in str(win.title).lower() and _is_usable(win):
-                return {"top": int(win.top), "left": int(win.left),
-                        "width": int(win.width), "height": int(win.height)}
+        windows: List[Any] = list(gw.getAllWindows())
     except Exception as exc:  # incl. gw.PyGetWindowException
-        logger.warning(f"Window lookup for '{window_title}' failed: {exc}")
-    return None
+        logger.warning(f"Window lookup for '{title}' failed: {exc}")
+        return None
+    exact: Optional[Bounds] = None
+    partial: Optional[Bounds] = None
+    for win in windows:
+        try:
+            name = str(win.title).strip().lower()
+            if needle not in name or not _is_usable(win):
+                continue
+            found = {"top": int(win.top), "left": int(win.left),
+                     "width": int(win.width), "height": int(win.height)}
+        except Exception as exc:  # one broken window must not abort the scan
+            logger.debug(f"Skipping unreadable window: {exc}")
+            continue
+        if name == needle:
+            exact = found
+            break
+        if partial is None:
+            partial = found
+    bounds = exact or partial
+    if bounds is None:
+        return None
+    screen = get_screen_bounds()
+    if screen is None:
+        return bounds
+    clamped = clamp_to_screen(bounds, screen)
+    if clamped is None:
+        logger.warning(f"Window '{title}' is entirely off-screen: {bounds}")
+    elif clamped != bounds:
+        logger.warning(
+            f"Window '{title}' is partly off-screen; capture clamped from "
+            f"{bounds} to {clamped}. Bar positions may be misaligned.")
+    return clamped

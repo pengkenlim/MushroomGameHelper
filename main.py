@@ -80,15 +80,15 @@ class Runner:
         if self.running:
             return
         logger.info(f"Bot session starting. Config: {config_summary()}")
-        if config.CAPTURE_WINDOW_TITLE:
-            bounds = get_window_bounds(config.CAPTURE_WINDOW_TITLE)
+        if config.WINDOW_TITLE:
+            bounds = get_window_bounds(config.WINDOW_TITLE)
             if bounds is None:
                 logger.warning(
-                    f"Window '{config.CAPTURE_WINDOW_TITLE}' not found; "
+                    f"Window '{config.WINDOW_TITLE}' not found; "
                     "falling back to static capture coordinates")
             else:
                 logger.info(
-                    f"Window '{config.CAPTURE_WINDOW_TITLE}' found: {bounds}")
+                    f"Window '{config.WINDOW_TITLE}' found: {bounds}")
         stop_event = self._stop = threading.Event()
         vision = self._vision = Vision()
         action = self._action = Action()

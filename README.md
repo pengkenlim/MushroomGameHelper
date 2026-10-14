@@ -116,7 +116,7 @@ When the window opens, the app verifies that `calibration.json` exists and that 
 | **Top**, **Left** | Pixel position of the capture rectangle's top-left corner, relative to the primary monitor. |
 | **Width**, **Height** | Size of the capture rectangle in pixels (must be at least 1). |
 | **Match threshold** | Template-matching confidence from `0` to `1` (default `0.8`). |
-| **Window Title** | Optional. Part of the game window's title (case-insensitive). If set and found, the capture region follows that window, re-checked every 2 s. If not found, the fixed values above are used. |
+| **Game Window Title** | Optional. Leave blank to use the fixed coordinates above; enter the game's window title for auto-tracking. See [Dynamic Window Tracking](#dynamic-window-tracking). |
 | **Start** | Validates the fields, re-checks calibration, and starts the vision, scheduler and action threads. |
 | **Stop** | Stops all threads, releases any held key, and saves your settings to `calibration.json`. |
 
@@ -146,7 +146,7 @@ Settings are saved to `calibration.json` when you press **Stop**, when you close
 Click **Launch Bar Calibrator**. The main window hides itself, `calibrator.py` starts, and a screenshot of your capture region opens in an OpenCV window titled **Calibrator**. The label on the tab reminds you: *"Calibration saves directly to calibration.json"*.
 
 > [!IMPORTANT]
-> The screenshot is taken the moment the calibrator starts, using the **Top / Left / Width / Height** values from the **Dashboard**. Make sure the game (with both bars visible) fills that area and nothing, including your terminal, covers it. The calibrator always uses these fixed values, not the **Window Title** option.
+> The screenshot is taken the moment the calibrator starts. If **Game Window Title** is set and the window is found, the calibrator captures **that window** (and records its position and size in `calibration.json`); otherwise it uses the fixed **Top / Left / Width / Height** values from the **Dashboard**. Make sure the game (with both bars visible) is on screen and nothing, including your terminal, covers it.
 
 For **Health** first, then **Mana**, repeat these three actions (the instruction text at the top-left of the image tells you which one is next):
 
@@ -175,7 +175,7 @@ and the same three questions for Mana. For example `40`, `h`, `1` means "when He
 When the calibrator finishes, the **Calibrate Bars** tab detects that it exited, re-reads `calibration.json`, brings the main window back, enables **Start** and returns you to the **Dashboard**. If you cancel, the main window comes back too and nothing changes.
 
 > [!WARNING]
-> **Do not move or resize the game window after calibrating.** The bar positions are stored as pixel offsets inside the capture rectangle. If the window moves, the bot will look at the wrong place and read nonsense. If you must move it, update the capture fields on the **Dashboard** and calibrate again. Also recalibrate after any change of game resolution or UI scale.
+> **Do not resize the game window, and do not move it unless [Dynamic Window Tracking](#dynamic-window-tracking) is on.** The bar positions are stored as pixel offsets inside the capture rectangle. Without tracking, a moved window makes the bot look at the wrong place and read nonsense; with tracking, moving is safe but **resizing or changing the in-game resolution still requires recalibration**. Also recalibrate after any change of UI scale.
 
 > [!TIP]
 > Calibrate while a bar is steady (not flashing). Click the middle of the filled and empty parts, away from borders, text and glow. You must **Stop** the bot before launching the calibrator, and you must start the app from a terminal so the prompts have somewhere to appear.
@@ -201,6 +201,36 @@ The table is reloaded from `schedules.json` every time you open the tab, and eve
 
 > [!NOTE]
 > The scheduler reads `schedules.json` **when the bot starts**. After changing buffs, press **Stop** and then **Start**. A buff that has never fired is due **immediately** after **Start**, then every *Interval* seconds.
+
+### Dynamic Window Tracking
+
+**No more broken bots if you accidentally move the game window!** Instead of capturing a fixed rectangle of your desktop, the bot can find the game window by its title and follow it wherever you drag it.
+
+#### Step-by-step: find your exact window title
+
+1. Start the game and leave it open (not minimized).
+2. Find the title text:
+   - **Windows (easiest):** look at the **title bar** at the top of the game window and copy the text exactly. If there is no title bar (borderless), hover over the game's icon in the taskbar and read the name shown.
+   - **Windows (Task Manager):** press **Ctrl + Shift + Esc**, open the **Details** tab and find the game's `.exe`. The **Name** column shows the program file name, which is often similar to, but not always the same as, the window title. If in doubt, trust the title bar.
+   - **macOS / Linux:** read the text in the window's title bar. Note that [tracking is mostly Windows-only](#os-guide).
+3. Open the **Dashboard** tab and type that text into **Game Window Title**. Copy and paste to avoid typos; capitalisation does not matter.
+4. Press **Start** (or go to **Calibrate Bars** and calibrate). The first time it works you will see a line like `Capture region set from window 'MyGame': {...}` in the terminal and in `bot_session.log`.
+
+> [!TIP]
+> An **exact** title match is preferred. If there is none, the first window whose title **contains** your text is used, so `MyGame` also matches `MyGame - Level 3`. Make the text specific enough not to match another window (a browser tab named after the game, for example).
+
+Leave the field **blank** to keep using the fixed **Top / Left / Width / Height** values.
+
+#### How it behaves
+
+- The window position is checked when the bot starts and again **every 5 seconds** (`WINDOW_REFRESH_INTERVAL` in `config.py`), so after you drag the window the bot follows within 5 seconds.
+- **Minimized or hidden window:** the bot keeps using the last known good position and logs a warning. When you restore the window it re-acquires it within 5 seconds. It never captures an empty or invalid region.
+- **Window not found** (wrong title, no permission, unsupported OS): the bot falls back to the fixed coordinates, logs `Window '...' not found`, and keeps retrying.
+- **Partly off-screen:** the capture is cropped to the part that is visible on your screens (`mss` cannot capture outside them). A warning is logged, because if the left or top edge is cut off the bars shift and may be misread; drag the window fully on-screen. A window that is entirely off-screen is treated like a minimized one.
+- **Size changed:** the position and size of the window are saved when you calibrate. If the window later has a different size, a warning is logged (`Window size ... differs from the size at calibration`).
+
+> [!WARNING]
+> **Limitations.** Tracking follows the window's **position**, not the picture inside it. If you change the game's **internal resolution** or resize the window, the bars are no longer where calibration recorded them: you **must recalibrate**. If the game goes **full-screen exclusive**, it may not appear as a normal window (or may capture as black): switch to **Windowed** or **Borderless Windowed** and recalibrate. Tracking needs the `pygetwindow` package (installed by `requirements.txt`).
 
 ### Template setup (optional)
 
@@ -353,7 +383,9 @@ Every run writes a rotating log file, `bot_session.log`, in the project folder (
 | `Scheduling buff press: f1` | A buff came due. |
 | `Looting toggled: looting_active=True` | The chord was detected. |
 | `bar_percent returned None for health on 3 consecutive frames` | The ROI is misaligned or the bar is hidden. Recalibrate. |
-| `Window '...' not found; ...` | The **Window Title** did not match; the fixed region is used. |
+| `Window '...' not found; ...` | The **Game Window Title** did not match or the window is minimized; the last known (or fixed) region is used. |
+| `Window size ... differs from the size at calibration` | The game was resized or its resolution changed. Recalibrate. |
+| `Window '...' is partly off-screen; capture clamped ...` | Drag the game window fully on-screen. |
 | `Error in vision: ...` | A loop iteration failed (it keeps running); the traceback follows. |
 
 </details>
@@ -373,7 +405,7 @@ Screen capture (`mss`) and keyboard control (`pynput`) are things operating syst
 
 - If the bot reads bars but the game **ignores the key presses**, run your terminal **as Administrator** (right-click → *Run as administrator*) and launch the app from there. Windows blocks a normal program from sending input to an elevated one, so if the game runs as administrator, the bot must too.
 - Use **Windowed** or **Borderless Windowed** mode; exclusive fullscreen often captures a black image.
-- **Window Title** following relies on `pygetwindow`, which works on Windows.
+- **Game Window Title** tracking relies on `pygetwindow`, which works on Windows.
 
 ### 🍎 macOS
 
@@ -385,13 +417,13 @@ Grant your **terminal app** (Terminal, iTerm, VS Code, or the Python you launch 
 | **Accessibility** | **System Settings → Privacy & Security → Accessibility** | `pynput` pressing keys. |
 | **Input Monitoring** | **System Settings → Privacy & Security → Input Monitoring** | `pynput` hearing the looting hotkey chord. |
 
-On macOS 12 and earlier the same switches live under **System Preferences → Security & Privacy → Privacy**. Window-title following has limited support on macOS and falls back to the fixed region.
+On macOS 12 and earlier the same switches live under **System Preferences → Security & Privacy → Privacy**. Game-window tracking has limited support on macOS and falls back to the fixed region.
 
 ### 🐧 Linux
 
 - Install Tkinter: `sudo apt-get install python3-tk` (Debian/Ubuntu) or `sudo dnf install python3-tkinter` (Fedora).
 - Use an **X11 (Xorg)** session. **Wayland** blocks both screen capture and synthetic input for security, so `mss` and `pynput` typically return black images or do nothing. At the login screen choose the "on Xorg" / "X11" session.
-- Window-title following is not available on most Linux setups (the fixed region is used), so keep the window still.
+- Game-window tracking is not available on most Linux setups (the fixed region is used), so keep the window still.
 
 ---
 
@@ -409,6 +441,7 @@ On macOS 12 and earlier the same switches live under **System Preferences → Se
 | **Start is greyed out** | Calibration is missing or still has placeholder values. | Use the **Calibrate Bars** tab. |
 | **"Invalid settings: ..." message** | A **Dashboard** field is empty, negative, or not a number; **Width**/**Height** must be at least 1; **Match threshold** must be 0-1. | Correct the field and press **Start** again. |
 | **Bar always reads 0 % or 100 %** | Wrong ROI or colours, or the window moved. | Recalibrate; keep the game window still. |
+| **Bot stops tracking / captures desktop** | The game window was minimized or hidden. | Restore the game window. The bot will automatically re-acquire it within 5 seconds. (Also check **Game Window Title** is spelled correctly and see `bot_session.log`.) |
 | **Reds never read correctly** | Hue wrap-around isn't handled. | Edit the `*_lower` / `*_upper` values in `calibration.json` by hand. |
 | **Settings reverted** | Settings are saved on **Stop** / window close, not continuously; a crash loses unsaved edits. | Press **Stop** (or close the window) after changing them. |
 
@@ -467,6 +500,7 @@ These are created when you use the app and are ignored by git.
 }
 ```
 
+- `window_title`: the **Game Window Title** (empty = fixed coordinates). When tracking is on, `top`/`left`/`width`/`height` hold the window geometry recorded at calibration, used as the fallback and as the size reference for the resize warning.
 - `roi`: `[x, y, width, height]` relative to the capture region.
 - `*_lower` / `*_upper`: HSV bounds (OpenCV scale: hue 0-179, saturation/value 0-255).
 - `threshold_percent`: the bar counts as *low* below this percentage.
@@ -501,7 +535,7 @@ Invalid entries and duplicate names are skipped when loading. Buff keys are pres
 | `SMOOTHING_WINDOW` | `4` | Frames in the median filter. |
 | `MATCH_THRESHOLD` | `0.80` | Template match confidence (0-1). |
 | `TEMPLATE_THRESHOLDS` | `{}` | Per-template confidence overrides. |
-| `WINDOW_REFRESH_INTERVAL` | `2.0` s | How often the game window position is re-checked (`0` disables). |
+| `WINDOW_REFRESH_INTERVAL` | `5.0` s | How often the game window position is re-checked (`0` disables). |
 | `BUFF_INPUT_COOLDOWN` | `0.15` s | Minimum gap between two scheduled buff presses. |
 | `DEFAULT_PRESS_DURATION` | `0.05` s | How long a tap is held. |
 
@@ -532,7 +566,7 @@ flowchart LR
 | `state.py` | Lock-protected shared dictionary bridging the threads (all access goes through its lock). |
 | `action.py` | The only module that touches the keyboard: cooldown logic, scheduled buffs, looting hold-and-retrigger, and the dual-key combo listener. |
 | `scheduler.py` | Decides which buffs are due (`perf_counter`); never presses keys. |
-| `window_manager.py` | Finds the game window by title so the capture region can follow it. |
+| `window_manager.py` | Finds the game window by title (`pygetwindow`), rejects minimized windows and clamps the result to the screen bounds reported by `mss`. |
 | `osd.py` | Read-only always-on-top overlay (`--osd`). |
 | `logger.py` | Rotating session log, `bot_session.log`. |
 | `buff_setup.py` | **DEPRECATED**: use the GUI **Manage Buffs** tab instead. |
