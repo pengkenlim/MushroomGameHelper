@@ -58,13 +58,13 @@ class App:
                 row=row, column=1, padx=5, pady=2)
             self.fields[attr] = var
 
-        self.title_var = tk.StringVar(value=config.WINDOW_TITLE)
-        ttk.Label(frame, text="Game Window Title").grid(
+        ttk.Label(frame, text="Window title").grid(
             row=len(settings), column=0, sticky="w")
-        ttk.Entry(frame, textvariable=self.title_var, width=20).grid(
+        self.window_title_var = tk.StringVar(value=config.WINDOW_TITLE)
+        ttk.Entry(frame, textvariable=self.window_title_var, width=24).grid(
             row=len(settings), column=1, padx=5, pady=2)
-        ttk.Label(frame, text=self.WINDOW_TITLE_HELP, wraplength=320,
-                  justify=tk.LEFT).grid(
+        ttk.Label(frame, text="(blank = use static Top/Left/Width/Height)",
+                  foreground="grey").grid(
             row=len(settings) + 1, column=0, columnspan=2, sticky="w")
 
         self.start_btn = ttk.Button(frame, text="Start", command=self.start)
@@ -318,7 +318,7 @@ class App:
             return False
         for attr, value in parsed.items():
             setattr(config, attr, value)
-        config.WINDOW_TITLE = self.title_var.get().strip()
+        config.WINDOW_TITLE = self.window_title_var.get().strip()
         return True
 
     def start(self) -> None:

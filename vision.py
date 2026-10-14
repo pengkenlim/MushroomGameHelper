@@ -35,8 +35,7 @@ class Vision:
         self._window_found: Optional[bool] = None
         self._warned_size: Optional[Tuple[int, int]] = None
         self._last_refresh: float = time.perf_counter()
-        if config.WINDOW_TITLE:
-            self.refresh_region()
+        self._region_checked_at: float = 0.0
         self.history: Dict[str, Deque[float]] = {
             "health": deque(maxlen=config.SMOOTHING_WINDOW),
             "mana": deque(maxlen=config.SMOOTHING_WINDOW),
@@ -48,6 +47,46 @@ class Vision:
             image = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
             if image is not None:
                 self.templates[name] = image
+        self._apply_window_bounds(force=True)
+
+    def _apply_window_bounds(self, force: bool = False) -> None:
+        """Refreshes the capture region from the live game window bounds.
+
+        When ``config.WINDOW_TITLE`` is empty the static coordinates from
+        ``config.py`` are used unchanged. Otherwise the OS is queried at most
+        once every ``config.WINDOW_REFRESH_INTERVAL`` seconds. Every failure
+        mode (window minimized, closed, off-screen, library unavailable)
+        leaves ``self.region`` at its last known-good value so the vision
+        thread never captures an invalid area.
+
+        Args:
+            force: Bypass the refresh-interval throttle.
+        """
+        title = config.WINDOW_TITLE.strip()
+        if not title:
+            return
+        now = time.perf_counter()
+        if not force and (now - self._region_checked_at
+                          < config.WINDOW_REFRESH_INTERVAL):
+            return
+        self._region_checked_at = now
+        bounds = get_window_bounds(title)
+        if bounds is None:
+            logger.warning(
+                f"Window '{title}' not found or minimized; "
+                f"keeping last capture region {self.region}")
+            return
+        if (bounds["width"], bounds["height"]) != (
+                self.region["width"], self.region["height"]):
+            logger.warning(
+                f"Capture size changed from "
+                f"{self.region['width']}x{self.region['height']} to "
+                f"{bounds['width']}x{bounds['height']}. Health/mana ROIs are "
+                f"relative to this region and are probably misaligned now - "
+                f"re-run the calibrator.")
+        if bounds != self.region:
+            logger.info(f"Capture region updated to {bounds}")
+        self.region = bounds
 
     def refresh_region(self) -> bool:
         """Re-fetches the game window bounds into ``self.region``.
@@ -297,10 +336,5 @@ class Vision:
         Returns:
             The structured result of :meth:`analyze`.
         """
-        interval = config.WINDOW_REFRESH_INTERVAL
-        if config.WINDOW_TITLE and interval > 0:
-            now = time.perf_counter()
-            if now - self._last_refresh >= interval:
-                self._last_refresh = now
-                self.refresh_region()
+        self._apply_window_bounds()
         return self.analyze(self.capture())
