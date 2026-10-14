@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Union
 from pynput.keyboard import Controller, Key, KeyCode, Listener
 
 import config
+from logger import logger
 from state import SharedState
 
 KeyType = Union[Key, KeyCode]
@@ -91,6 +92,8 @@ class KeyComboListener:
         with self._toggle_lock:
             current_state = bool(self._state.get("looting_active", False))
             self._state.update({"looting_active": not current_state})
+            logger.info(
+                f"Looting toggled: looting_active={not current_state}")
 
     def on_press(self, key: Union[Key, KeyCode, None]) -> None:
         """Records a key press and fires the callback on a full chord.
@@ -225,12 +228,14 @@ class Action:
         timer.daemon = True
         timer.start()
 
-    def trigger(self, key: str, cooldown: float) -> bool:
+    def trigger(self, key: str, cooldown: float, resource: str = "") -> bool:
         """Presses ``key`` unless its cooldown has not elapsed.
 
         Args:
             key: Key name to press.
             cooldown: Minimum seconds since the previous press of ``key``.
+            resource: Resource (``"health"``/``"mana"``) that caused the
+                press, used for logging only.
 
         Returns:
             True if the key was pressed, False if suppressed by cooldown.
@@ -239,8 +244,13 @@ class Action:
         with self._lock:
             last = self._last_pressed.get(key)
             if last is not None and now - last < cooldown:
+                logger.warning(
+                    f"Suppressed {key} press: cooldown active "
+                    f"({cooldown - (now - last):.2f}s remaining)")
                 return False
             self._last_pressed[key] = now
+        if resource:
+            logger.info(f"Triggered {key} due to low {resource}")
         self.press_async(key)
         return True
 
@@ -251,9 +261,10 @@ class Action:
             snapshot: Copy of the shared state produced by the vision thread.
         """
         if snapshot.get("health_low"):
-            self.trigger(config.HEALTH.keybind, config.HEALTH.cooldown)
+            self.trigger(config.HEALTH.keybind, config.HEALTH.cooldown,
+                         "health")
         if snapshot.get("mana_low"):
-            self.trigger(config.MANA.keybind, config.MANA.cooldown)
+            self.trigger(config.MANA.keybind, config.MANA.cooldown, "mana")
 
     def execute_buff_presses(self, keybinds: List[str]) -> None:
         """Presses scheduled buff keys one after another.

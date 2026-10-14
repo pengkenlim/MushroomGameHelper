@@ -10,8 +10,12 @@ import numpy as np
 
 import config
 from config import BarConfig
+from logger import logger
 
 Match = Tuple[int, int, float]
+
+BAR_NONE_FRAMES: int = 3
+NO_MATCH_FRAMES: int = 5
 
 
 class Vision:
@@ -30,6 +34,8 @@ class Vision:
             "health": deque(maxlen=config.SMOOTHING_WINDOW),
             "mana": deque(maxlen=config.SMOOTHING_WINDOW),
         }
+        self._bar_none_streak: Dict[str, int] = {"health": 0, "mana": 0}
+        self._no_match_streak: Dict[str, int] = {}
         self.templates: Dict[str, np.ndarray] = {}
         for name, path in config.TEMPLATES.items():
             image = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
@@ -150,6 +156,39 @@ class Vision:
             window.append(raw)
         return float(statistics.median(window)) if window else 100.0
 
+    def _track_bar(self, key: str, raw: Optional[float]) -> None:
+        """Logs when a bar reading is missing for consecutive frames.
+
+        Args:
+            key: ``"health"`` or ``"mana"``.
+            raw: This frame's raw percentage, or None.
+        """
+        if raw is not None:
+            self._bar_none_streak[key] = 0
+            return
+        streak = self._bar_none_streak[key] = self._bar_none_streak[key] + 1
+        if streak == BAR_NONE_FRAMES:
+            logger.debug(
+                f"bar_percent returned None for {key} on {streak} "
+                "consecutive frames (ROI misaligned or bar hidden?)")
+
+    def _track_matches(self, name: str, matches: List[Match]) -> None:
+        """Logs when a template has no matches for consecutive frames.
+
+        Args:
+            name: Template name.
+            matches: Matches found in this frame.
+        """
+        if matches:
+            self._no_match_streak[name] = 0
+            return
+        streak = self._no_match_streak[name] = (
+            self._no_match_streak.get(name, 0) + 1)
+        if streak == NO_MATCH_FRAMES + 1:
+            logger.warning(
+                f"Template '{name}' had zero matches for more than "
+                f"{NO_MATCH_FRAMES} consecutive frames")
+
     def analyze(self, frame: np.ndarray) -> Dict[str, Any]:
         """Extracts structured data from a frame.
 
@@ -169,10 +208,13 @@ class Vision:
                 name, config.MATCH_THRESHOLD
             )
             matches[name] = self.find_template(frame, template, threshold)
-        health = self.smoothed_percent(
-            "health", self.bar_percent(frame, config.HEALTH))
-        mana = self.smoothed_percent(
-            "mana", self.bar_percent(frame, config.MANA))
+            self._track_matches(name, matches[name])
+        raw_health = self.bar_percent(frame, config.HEALTH)
+        raw_mana = self.bar_percent(frame, config.MANA)
+        self._track_bar("health", raw_health)
+        self._track_bar("mana", raw_mana)
+        health = self.smoothed_percent("health", raw_health)
+        mana = self.smoothed_percent("mana", raw_mana)
         return {
             "matches": matches,
             "targets_visible": any(matches.values()),
