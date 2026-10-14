@@ -38,5 +38,10 @@ Edit `CAPTURE_TOP`, `CAPTURE_LEFT`, `CAPTURE_WIDTH`, `CAPTURE_HEIGHT` in
 ## Run
 
 ```bash
-python main.py
+python main.py          # headless, Ctrl+C to stop
+python main.py --gui    # Tkinter GUI (or: python gui.py)
 ```
+
+The GUI lets you edit the capture region and match threshold, start/stop the
+threads, and view live detection status. Closing the window stops the threads
+and releases any held keys.
