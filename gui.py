@@ -119,7 +119,8 @@ class App:
             f"(low: {snap.get('mana_low')})\n"
             f"Matches: {counts or '-'}"
         )
-        self.info.set(self.info.get() + "\n" + self.schedule_text(snap))
+        self.info.set(self.info.get() + "\n" + self.schedule_text(snap)
+                      + "\n" + self.looting_status_text(snap))
         self.root.after(REFRESH_MS, self.refresh)
 
     @staticmethod
@@ -145,6 +146,21 @@ class App:
                 f"every {float(item['interval_seconds']):g}s "  # type: ignore[arg-type]
                 f"- next in {remaining:.1f}s")
         return "\n".join(lines)
+
+    @staticmethod
+    def looting_status_text(snap: Dict[str, object]) -> str:
+        """Formats the looting hold-and-retrigger status.
+
+        Args:
+            snap: Shared-state snapshot containing ``looting_active``.
+
+        Returns:
+            ``"Looting: ACTIVE"`` or an "Inactive" hint naming the toggle chord.
+        """
+        if snap.get("looting_active"):
+            return "Looting: ACTIVE"
+        return (f"Looting: Inactive (Press {config.LOOTING.toggle_key_1}"
+                f"+{config.LOOTING.toggle_key_2} to toggle)")
 
     def on_close(self) -> None:
         """Stops threads (releasing keys) and closes the window."""
