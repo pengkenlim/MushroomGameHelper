@@ -167,17 +167,19 @@ def main() -> None:
         from gui import launch
         launch()
         return
-    runner = Runner()
     if "--osd" in sys.argv[1:]:
         from osd import launch_osd
+        runner = Runner()
         runner.start()
+        print("Running with OSD overlay. Press Ctrl+C to stop.")
         try:
-            launch_osd(runner.state)
+            launch_osd(runner.state, on_close=runner.stop)
         except KeyboardInterrupt:
             print("Shutting down...")
         finally:
             runner.stop()
         return
+    runner = Runner()
     runner.start()
     print("Running. Press Ctrl+C to stop.")
     try:

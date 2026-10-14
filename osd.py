@@ -8,6 +8,11 @@ from state import SharedState
 
 REFRESH_MS: int = 250  # 4 FPS, matching the vision loop
 ALPHA: float = 0.8
+# True: mouse clicks pass through to the game, but Escape will NOT work
+#       on Windows (close with Ctrl+C in the terminal instead).
+# False: the overlay can be focused and closed with Escape, but it will
+#        block mouse clicks over its area.
+CLICK_THROUGH: bool = True
 BG_COLOR: str = "black"
 FG_COLOR: str = "#00ff66"
 FONT: tuple[str, int, str] = ("Consolas", 11, "bold")
@@ -53,6 +58,8 @@ def make_click_through(root: tk.Tk) -> bool:
     Returns:
         True if the styles were applied.
     """
+    if not CLICK_THROUGH:
+        return False
     if sys.platform != "win32":
         return False
     try:
@@ -64,6 +71,16 @@ def make_click_through(root: tk.Tk) -> bool:
         style = user32.GetWindowLongW(hwnd, gwl_exstyle)
         style |= 0x00080000 | 0x00000020 | 0x08000000 | 0x00000080
         user32.SetWindowLongW(hwnd, gwl_exstyle, style)
+        # Extended styles only take effect after the window frame is rebuilt.
+        swp_nosize = 0x0001
+        swp_nomove = 0x0002
+        swp_nozorder = 0x0004
+        swp_noactivate = 0x0010
+        swp_framechanged = 0x0020
+        user32.SetWindowPos(
+            hwnd, 0, 0, 0, 0, 0,
+            swp_nomove | swp_nosize | swp_nozorder
+            | swp_noactivate | swp_framechanged)
         return True
     except (OSError, AttributeError):
         return False
@@ -112,8 +129,10 @@ class OSDWindow:
 
         self.root.bind("<Escape>", lambda _event: self.close())
         self.root.protocol("WM_DELETE_WINDOW", self.close)
-        self.root.focus_force()  # lets Escape work where not click-through
-        make_click_through(self.root)
+        if make_click_through(self.root):
+            pass  # click-through active; Escape unavailable, use Ctrl+C
+        else:
+            self.root.focus_force()  # lets Escape close the overlay
         self.refresh()
 
     def refresh(self) -> None:
