@@ -12,6 +12,11 @@ import config
 from config import BuffSchedule
 from main import Runner
 
+try:
+    import pygetwindow as gw
+except Exception:  # pragma: no cover - platform-dependent dependency
+    gw = None
+
 REFRESH_MS: int = 250
 CALIBRATOR_POLL_MS: int = 200
 CALIBRATOR_PATH: Path = Path(__file__).resolve().parent / "calibrator.py"
@@ -46,17 +51,47 @@ class App:
         self.notebook.add(self.buffs_tab, text="Manage Buffs")
 
         self.fields: Dict[str, tk.StringVar] = {}
+        self.manual_fields: List[ttk.Entry] = []
+        self.window_title_var = tk.StringVar(value=config.WINDOW_TITLE)
+
+        try:
+            if gw is not None:
+                window_titles = [
+                    w.title for w in gw.getAllWindows()
+                    if getattr(w, "title", "").strip()
+                ]
+            else:
+                window_titles = []
+        except Exception:
+            window_titles = []
+        self.advanced_toggle_var = tk.BooleanVar(value=gw is None)
+        ttk.Label(frame, text="Game Window").grid(row=0, column=0, sticky="w")
+        self.window_dropdown = ttk.Combobox(
+            frame, textvariable=self.window_title_var, values=window_titles,
+            state="readonly" if window_titles else "disabled", width=24)
+        self.window_dropdown.grid(row=0, column=1, padx=5, pady=2, sticky="ew")
+        self.window_dropdown.bind("<<ComboboxSelected>>", self.on_window_select)
+
         settings = [
             ("Top", "CAPTURE_TOP"), ("Left", "CAPTURE_LEFT"),
             ("Width", "CAPTURE_WIDTH"), ("Height", "CAPTURE_HEIGHT"),
             ("Match threshold", "MATCH_THRESHOLD"),
         ]
-        for row, (label, attr) in enumerate(settings):
+        for row, (label, attr) in enumerate(settings, start=1):
             ttk.Label(frame, text=label).grid(row=row, column=0, sticky="w")
             var = tk.StringVar(value=str(getattr(config, attr)))
-            ttk.Entry(frame, textvariable=var, width=10).grid(
-                row=row, column=1, padx=5, pady=2)
+            entry = ttk.Entry(frame, textvariable=var, width=10)
+            entry.grid(row=row, column=1, padx=5, pady=2)
             self.fields[attr] = var
+            if row <= 4:
+                self.manual_fields.append(entry)
+
+        self.advanced_toggle = ttk.Checkbutton(
+            frame, text="Show Advanced (Manual Coordinates)",
+            variable=self.advanced_toggle_var, command=self.toggle_manual_fields)
+        self.advanced_toggle.grid(row=6, column=0, columnspan=2, sticky="w",
+                                 padx=5, pady=(4, 0))
+        self.toggle_manual_fields()
 
         self.hp_threshold_var = tk.StringVar(
             value=str(config.HEALTH.threshold_percent))
@@ -75,37 +110,23 @@ class App:
             ("MP Keybind", self.mp_keybind_var),
             ("MP Cooldown", self.mp_cooldown_var),
         ]
-        for row, (label, var) in enumerate(config_rows, start=len(settings)):
+        for row, (label, var) in enumerate(config_rows, start=6):
             ttk.Label(frame, text=label).grid(row=row, column=0, sticky="w")
             ttk.Entry(frame, textvariable=var, width=12).grid(
                 row=row, column=1, padx=5, pady=2)
 
-        ttk.Label(frame, text="Window title").grid(
-            row=len(settings) + len(config_rows), column=0, sticky="w")
-        self.window_title_var = tk.StringVar(value=config.WINDOW_TITLE)
-        ttk.Entry(frame, textvariable=self.window_title_var, width=24).grid(
-            row=len(settings) + len(config_rows), column=1, padx=5, pady=2)
-        ttk.Label(frame, text="(blank = use static Top/Left/Width/Height)",
-                  foreground="grey").grid(
-            row=len(settings) + len(config_rows) + 1, column=0, columnspan=2,
-            sticky="w")
-
         self.start_btn = ttk.Button(frame, text="Start", command=self.start)
         self.stop_btn = ttk.Button(frame, text="Stop", command=self.stop,
                                    state=tk.DISABLED)
-        self.start_btn.grid(row=len(settings) + len(config_rows) + 2, column=0,
-                            pady=8)
-        self.stop_btn.grid(row=len(settings) + len(config_rows) + 2, column=1,
-                           pady=8)
+        self.start_btn.grid(row=12, column=0, pady=8)
+        self.stop_btn.grid(row=12, column=1, pady=8)
 
         self.status = tk.StringVar(value="Idle")
         self.info = tk.StringVar(value="")
         ttk.Label(frame, textvariable=self.status, wraplength=320).grid(
-            row=len(settings) + len(config_rows) + 3, column=0,
-            columnspan=2, sticky="w")
+            row=13, column=0, columnspan=2, sticky="w")
         ttk.Label(frame, textvariable=self.info, justify=tk.LEFT).grid(
-            row=len(settings) + len(config_rows) + 4, column=0,
-            columnspan=2, sticky="w")
+            row=14, column=0, columnspan=2, sticky="w")
 
         self._build_calibrate_tab()
         self._build_buffs_tab()
@@ -117,10 +138,38 @@ class App:
             self.notebook.select(self.calibrate_tab)
         self.refresh()
 
+
     WINDOW_TITLE_HELP: str = ("Leave blank to use static coordinates. Enter "
                               "exact game window title for auto-tracking.")
     SETUP_INCOMPLETE: str = ("Setup Incomplete: Please calibrate your bars in "
                              "the 'Calibrate Bars' tab before starting.")
+
+    def toggle_manual_fields(self) -> None:
+        """Shows or hides the manual capture-region fields."""
+        show = self.advanced_toggle_var.get()
+        for entry in self.manual_fields:
+            if show:
+                entry.grid()
+            else:
+                entry.grid_remove()
+
+    def on_window_select(self, _event: object = None) -> None:
+        """Loads the selected window's geometry into the manual fields."""
+        selected_title = self.window_title_var.get().strip()
+        if not selected_title or gw is None:
+            return
+        try:
+            window = gw.getWindowsWithTitle(selected_title)[0]
+        except (IndexError, AttributeError, TypeError, ValueError):
+            return
+        values = {
+            "CAPTURE_TOP": str(int(window.top)),
+            "CAPTURE_LEFT": str(int(window.left)),
+            "CAPTURE_WIDTH": str(int(window.width)),
+            "CAPTURE_HEIGHT": str(int(window.height)),
+        }
+        for attr, value in values.items():
+            self.fields[attr].set(value)
 
     @staticmethod
     def is_calibration_valid() -> bool:
