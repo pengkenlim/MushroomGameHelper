@@ -4,6 +4,7 @@ import subprocess
 import sys
 import time
 import tkinter as tk
+import webbrowser
 from pathlib import Path
 from tkinter import ttk
 from typing import Dict, List
@@ -529,6 +530,37 @@ class App:
         return (f"Looting: Inactive (Press {config.LOOTING.toggle_key_1}"
                 f"+{config.LOOTING.toggle_key_2} to toggle)")
 
+    def show_exit_popup(self) -> tk.Toplevel:
+        """Shows a thank-you popup with a link to the GitHub repository."""
+        popup = tk.Toplevel(self.root)
+        popup.title("Thanks")
+        popup.transient(self.root)
+
+        ttk.Label(
+            popup,
+            text=(
+                "Thanks for using the tool! If useful to you, please consider "
+                "leaving feedback and giving a star to the repo!"
+            ),
+            wraplength=360,
+            justify=tk.CENTER,
+        ).pack(padx=16, pady=(16, 8))
+
+        ttk.Button(
+            popup,
+            text="Open GitHub Repository",
+            command=lambda: webbrowser.open(
+                "https://github.com/pengkenlim/MushroomGameHelper"
+            ),
+        ).pack(pady=(0, 8))
+
+        ttk.Button(popup, text="Close", command=popup.destroy).pack(
+            pady=(0, 16)
+        )
+        popup.grab_set()
+        popup.protocol("WM_DELETE_WINDOW", popup.destroy)
+        return popup
+
     def on_close(self) -> None:
         """Stops threads (releasing keys) and closes the window.
 
@@ -548,6 +580,9 @@ class App:
         proc = self._calibrator
         if proc is not None and proc.poll() is None:
             proc.terminate()
+
+        popup = self.show_exit_popup()
+        self.root.wait_window(popup)
         try:
             self.runner.stop()
             self.save()
