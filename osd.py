@@ -154,6 +154,7 @@ class OSDWindow:
         self.vars: Dict[str, tk.StringVar] = {
             name: tk.StringVar(value=text) for name, text in (
                 ("hp", "HP: --%"), ("mp", "MP: --%"),
+                ("inputs", "Your keys held: 0"),
                 ("autolooting", "Autolooting: OFF (Toggle: ctrl+l)"),
                 ("repot", "Re-poting: OFF (Toggle: ctrl+r)"),
                 ("rebuff", "Re-buffing: OFF (Toggle: ctrl+b)"),
@@ -181,6 +182,9 @@ class OSDWindow:
         snap = self._state.snapshot()
         self.vars["hp"].set(format_percent("HP", snap.get("health_percent")))
         self.vars["mp"].set(format_percent("MP", snap.get("mana_percent")))
+        self.vars["inputs"].set(
+            f"Your keys held: {snap.get('physical_keys_held', 0)}"
+        )
         self.vars["autolooting"].set(
             format_toggle(
                 "Autolooting",

@@ -2,7 +2,8 @@ import unittest
 from unittest.mock import patch
 
 import config
-from action import Action, PRIORITY_HEAL, PRIORITY_LOOT
+from action import Action, KeyComboListener, PRIORITY_HEAL, PRIORITY_LOOT
+from pynput.keyboard import KeyCode
 from state import SharedState
 
 
@@ -34,6 +35,61 @@ class DispatcherCooldownTests(unittest.TestCase):
             action._dispatch({"looting_active": True, "repot_active": False, "rebuff_active": False})
 
         self.assertEqual(action._queue, [])
+
+    def test_listener_tracks_non_bot_physical_keys(self) -> None:
+        original = {
+            "HEALTH": config.HEALTH.keybind,
+            "MANA": config.MANA.keybind,
+            "LOOTING_KEYBIND": config.LOOTING_KEYBIND,
+            "LOOTING_TOGGLE_1": config.LOOTING_TOGGLE_1,
+            "LOOTING_TOGGLE_2": config.LOOTING_TOGGLE_2,
+            "REPOT_TOGGLE_1": config.REPOT_TOGGLE_1,
+            "REPOT_TOGGLE_2": config.REPOT_TOGGLE_2,
+            "REBFF_TOGGLE_1": config.REBUFF_TOGGLE_1,
+            "REBFF_TOGGLE_2": config.REBUFF_TOGGLE_2,
+        }
+        try:
+            config.HEALTH.keybind = "h"
+            config.MANA.keybind = "m"
+            config.LOOTING_KEYBIND = "x"
+            config.LOOTING_TOGGLE_1 = "j"
+            config.LOOTING_TOGGLE_2 = "k"
+            config.REPOT_TOGGLE_1 = "u"
+            config.REPOT_TOGGLE_2 = "i"
+            config.REBUFF_TOGGLE_1 = "o"
+            config.REBUFF_TOGGLE_2 = "p"
+
+            state = SharedState()
+            listener = KeyComboListener(state)
+
+            with patch.object(config, "load_schedules", return_value=[]):
+                listener.on_press(KeyCode.from_char("a"))
+                listener.on_press(KeyCode.from_char("x"))
+                self.assertEqual(state.get("physical_keys_held"), 1)
+                self.assertEqual(listener._physical, {"a"})
+
+                listener.on_release(KeyCode.from_char("a"))
+                self.assertEqual(state.get("physical_keys_held"), 0)
+        finally:
+            config.HEALTH.keybind = original["HEALTH"]
+            config.MANA.keybind = original["MANA"]
+            config.LOOTING_KEYBIND = original["LOOTING_KEYBIND"]
+            config.LOOTING_TOGGLE_1 = original["LOOTING_TOGGLE_1"]
+            config.LOOTING_TOGGLE_2 = original["LOOTING_TOGGLE_2"]
+            config.REPOT_TOGGLE_1 = original["REPOT_TOGGLE_1"]
+            config.REPOT_TOGGLE_2 = original["REPOT_TOGGLE_2"]
+            config.REBUFF_TOGGLE_1 = original["REBFF_TOGGLE_1"]
+            config.REBUFF_TOGGLE_2 = original["REBFF_TOGGLE_2"]
+
+    def test_listener_clears_physical_count_on_stop(self) -> None:
+        state = SharedState()
+        listener = KeyComboListener(state)
+
+        listener.on_press(KeyCode.from_char("a"))
+        listener.stop()
+
+        self.assertEqual(listener._physical, set())
+        self.assertEqual(state.get("physical_keys_held"), 0)
 
 
 if __name__ == "__main__":

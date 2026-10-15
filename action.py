@@ -72,6 +72,26 @@ def normalize_key(key: Union[Key, KeyCode, None]) -> Optional[str]:
     return char.lower()
 
 
+def bot_key_names() -> Set[str]:
+    """Returns the normalized set of keys the bot itself presses.
+
+    pynput's Listener also observes the bot's own synthetic key events, so
+    they must be excluded when counting what the user is physically holding.
+
+    Returns:
+        Normalized key names owned by the automation.
+    """
+    raw = [
+        config.HEALTH.keybind, config.MANA.keybind, config.LOOTING_KEYBIND,
+        config.LOOTING_TOGGLE_1, config.LOOTING_TOGGLE_2,
+        config.REPOT_TOGGLE_1, config.REPOT_TOGGLE_2,
+        config.REBUFF_TOGGLE_1, config.REBUFF_TOGGLE_2,
+    ]
+    for schedule in config.load_schedules():
+        raw.append(schedule.keybind)
+    return {normalize_key_name(str(k).strip().lower()) for k in raw if k}
+
+
 class KeyComboListener:
     """Toggles looting, repotting and rebuffing via two-key chords."""
 
@@ -102,6 +122,7 @@ class KeyComboListener:
             (rebuff_key2 or config.REBUFF_TOGGLE_2).strip().lower())
         self._callback: Callable[[str], None] = callback or self._toggle_state
         self._pressed: Set[str] = set()
+        self._physical: Set[str] = set()
         self._pressed_lock: threading.Lock = threading.Lock()
         self._toggle_lock: threading.Lock = threading.Lock()
         self._listener: Optional[Listener] = None
@@ -111,6 +132,13 @@ class KeyComboListener:
         with self._toggle_lock:
             new_state = self._state.toggle(flag_name)
             logger.info(f"{flag_name} toggled: {flag_name}={new_state}")
+
+    def _publish_physical_count(self) -> None:
+        """Writes the current physical key count to the shared state."""
+        try:
+            self._state.set("physical_keys_held", len(self._physical))
+        except Exception as exc:
+            logger.debug(f"Could not publish physical key count: {exc}")
 
     def _on_press(self, key: Union[Key, KeyCode, None]) -> None:
         """Backward-compatible alias for the chord-detection callback."""
@@ -136,6 +164,8 @@ class KeyComboListener:
         fire: Optional[str] = None
         with self._pressed_lock:
             self._pressed.add(name)
+            if name not in bot_key_names():
+                self._physical.add(name)
             if {self._looting_key1, self._looting_key2}.issubset(self._pressed):
                 self._pressed.clear()
                 fire = "looting_active"
@@ -145,6 +175,7 @@ class KeyComboListener:
             elif {self._rebuff_key1, self._rebuff_key2}.issubset(self._pressed):
                 self._pressed.clear()
                 fire = "rebuff_active"
+        self._publish_physical_count()
         if fire is not None:
             try:
                 self._callback(fire)
@@ -163,6 +194,8 @@ class KeyComboListener:
             return
         with self._pressed_lock:
             self._pressed.discard(name)
+            self._physical.discard(name)
+        self._publish_physical_count()
 
     def start(self) -> None:
         """Starts listening on a background thread (no-op if running)."""
@@ -182,6 +215,8 @@ class KeyComboListener:
                 listener.join(timeout=1.0)  # do not leave a zombie thread
         with self._pressed_lock:
             self._pressed.clear()
+            self._physical.clear()
+        self._publish_physical_count()
 
 
 class Action:
