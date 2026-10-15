@@ -35,6 +35,8 @@ MushroomGameHelper takes a picture of a rectangle of your screen four times a se
 | Interface | `Tkinter` | Tabbed GUI and the on-screen display. |
 | Language | Python 3.10+ | Three cooperating threads: vision, scheduler, action. |
 
+![The unified Dashboard tab with grouped configuration frames and interactive tooltips.](docs/screenshots/dashboard_grouped.png)
+
 > [!NOTE]
 > This project was built for learning and reliability. Use it responsibly and only in games whose terms of service permit automation.
 
@@ -176,6 +178,8 @@ Looting: Inactive (Press ctrl+l to toggle)
 
 The last line is the looting status: `Looting: ACTIVE` while the loot key is being held, otherwise `Looting: Inactive` plus the chord that switches it on.
 
+![Easily bind complex inputs like media keys or mouse clicks using the Capture dialog.](docs/screenshots/key_capture.png)
+
 > [!NOTE]
 > The panel shows `Health: 0%` before you press **Start** because vision has not reported yet. That is normal.
 
@@ -218,6 +222,9 @@ Clicks outside the rectangle are ignored. Keys in the OpenCV window:
 | **q** or **Esc** | Cancel; nothing is saved. |
 | Closing the window with the title-bar button | Also cancels; nothing is saved. |
 
+![Visual ROI selection with high-contrast boundaries and a color-picker indicator.](docs/screenshots/calibrator_roi.png)
+
+**Then answer the terminal prompts** (the OpenCV window closes and the calibrator asks, for each bar):
 As soon as the Mana bar is done, the calibrator writes `calibration.json` and closes. The main window comes back by itself, reloads the file, enables **Start** and returns you to the **Dashboard**. If you cancel, the main window comes back too and nothing changes.
 
 > [!NOTE]
@@ -246,6 +253,9 @@ This tab edits `schedules.json` for you (it replaces the old `buff_setup.py` scr
 | **Interval** | Seconds between automatic presses (greater than 0). |
 | **Enabled** | `Yes` or `No`. Disabled schedules are kept but never fire. |
 
+![The table-based interface for scheduling timed buffs and potions.](docs/screenshots/buffs_treeview.png)
+
+- **Add** opens a small form for **Name**, **Keybind** and **Interval (s)**; click **Save**. Empty fields, a non-positive interval, or a duplicate name are rejected with a message.
 - **Add** opens a small form for **Name**, **Keybind** and **Interval (s)**; click **Save**. Empty fields, a non-positive interval or a duplicate name are rejected with a message.
 - **Toggle**: select a row, then click **Toggle** to enable or disable it.
 - **Delete**: select a row, then click **Delete**.
@@ -404,6 +414,20 @@ Missing template files are skipped silently.
 
 <a id="osd-telemetry"></a>
 
+<details>
+<summary><b>⌨️ Key Capture</b></summary>
+
+The capture buttons in the Dashboard and config screens let you bind any supported key, media key, or mouse input without typing raw names by hand. This is useful for actions like `media_play_pause`, `volume_mute`, or a mouse click in a game that does not expose a simple text keybind.
+
+- Press the **Capture** button next to a setting.
+- The dialog listens for the next single input only.
+- The captured value is written back into the field immediately and is saved with the rest of your configuration.
+- If you need to bind a modifier combination or a more complex chord, use the normal config fields directly and keep the capture dialog for quick single-input assignments.
+
+</details>
+
+<details>
+<summary><b>📺 On-Screen Display (OSD) &amp; Telemetry</b></summary>
 ## 📺 OSD & Telemetry
 
 ### The on-screen display (OSD)
@@ -425,6 +449,15 @@ Active Buffs: [Attack Buff [f1], Defense Buff [f2]]
 Buff countdowns: Attack Buff in 62.3s | Defense Buff in 120.0s
 ```
 
+![The semi-transparent, click-through OSD overlay.](docs/screenshots/osd_overlay.png)
+
+- On Windows, click-through is enabled by default via `CLICK_THROUGH = True` in `osd.py`, and the overlay must be closed with **Ctrl+C** in the terminal.
+- To close the overlay with **Esc** instead, set `CLICK_THROUGH = False` in `osd.py`; the overlay will then intercept mouse clicks over its area.
+- Transparency is controlled by `ALPHA = 0.8` in `osd.py`.
+
+It refreshes 4 times per second and is **read-only**. Held keys are released when the session exits.
+
+![OSD Screenshot](docs/osd.png)
 | Line | Meaning |
 | --- | --- |
 | `HP` / `MP` | Smoothed bar percentages. |
