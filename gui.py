@@ -1066,8 +1066,8 @@ class App:
         """
         if snap.get("looting_active"):
             return "Looting: ACTIVE"
-        return (f"Looting: Inactive (Press {config.LOOTING.toggle_key_1}"
-                f"+{config.LOOTING.toggle_key_2} to toggle)")
+        return (f"Looting: Inactive (Press {config.LOOTING_TOGGLE_1}"
+                f"+{config.LOOTING_TOGGLE_2} to toggle)")
 
     def show_exit_popup(self) -> tk.Toplevel:
         """Shows a thank-you popup with a link to the GitHub repository."""
