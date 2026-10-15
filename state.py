@@ -26,6 +26,7 @@ class SharedState:
         self._data.setdefault("repot_active", False)
         self._data.setdefault("rebuff_active", False)
         self._data.setdefault("physical_keys_held", 0)
+        self._data.setdefault("last_input_timestamp", 0.0)
         self._data.setdefault("last_actions", [])
     
     def toggle(self, key: str) -> bool:

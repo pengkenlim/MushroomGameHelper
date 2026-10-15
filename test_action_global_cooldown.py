@@ -91,6 +91,15 @@ class DispatcherCooldownTests(unittest.TestCase):
         self.assertEqual(listener._physical, set())
         self.assertEqual(state.get("physical_keys_held"), 0)
 
+    def test_trigger_defers_when_resolution_limit_active(self) -> None:
+        state = SharedState()
+        action = Action(state)
+        action.press_async = lambda *args, **kwargs: None
+        state.set("last_input_timestamp", 100.0)
+
+        with patch("action.time.perf_counter", side_effect=[100.05, 100.05]):
+            self.assertFalse(action.trigger("h", 0.0, "health"))
+
 
 if __name__ == "__main__":
     unittest.main()
