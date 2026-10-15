@@ -336,7 +336,7 @@ ACTION_INTERVAL: float = 0.10  # ~10 Hz
 # Represents the game engine's input detection resolution. Presses closer
 # than this will be missed by the game. Tool actions are deferred if they
 # would violate this limit relative to the last input (user or automated).
-RESOLUTION_LIMIT: float = 0.3
+RESOLUTION_LIMIT: float = 0.1
 # Minimum seconds between ANY two automated key presses. Prevents the game
 # engine's limited input buffer from dropping simultaneous presses.
 GLOBAL_ACTION_COOLDOWN: float = 0.15
