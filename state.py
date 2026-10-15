@@ -26,6 +26,21 @@ class SharedState:
         self._data.setdefault("repot_active", False)
         self._data.setdefault("rebuff_active", False)
         self._data.setdefault("last_actions", [])
+    
+    def toggle(self, key: str) -> bool:
+        """Atomically flips a boolean value and returns the new state.
+
+        Args:
+            key: The key to toggle.
+
+        Returns:
+            The new boolean value.
+        """
+        with self._lock:
+            current = bool(self._data.get(key, False))
+            new_value = not current
+            self._data[key] = new_value
+            return new_value
 
     def get(self, key: str, default: Any = None) -> Any:
         """Returns the value for ``key`` or ``default`` if absent.

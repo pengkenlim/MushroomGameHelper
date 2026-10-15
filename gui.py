@@ -216,6 +216,8 @@ class App:
         self._poll_id: str | None = None
         self._closing: bool = False
         self._calibrator: subprocess.Popen[bytes] | None = None
+        self._osd = None
+        self._osd_root = None
         self.runner: Runner = runner or Runner()
         self.tooltips: List[ToolTip] = []
         root.title("MushroomGameHelper")
@@ -939,6 +941,25 @@ class App:
             logger.error(f"Could not apply settings: {exc}", exc_info=True)
             self._report_error(f"Could not apply settings: {exc}", exc)
             return False
+
+        # Apply keybinds and toggles to memory so they take effect on Start
+        config.HEALTH.threshold_percent = float(self.hp_threshold_var.get())
+        config.HEALTH.keybind = self.hp_keybind_var.get().strip()
+        config.HEALTH.cooldown = float(self.hp_cooldown_var.get())
+        config.MANA.threshold_percent = float(self.mp_threshold_var.get())
+        config.MANA.keybind = self.mp_keybind_var.get().strip()
+        config.MANA.cooldown = float(self.mp_cooldown_var.get())
+        config.REPOT_TOGGLE_1 = self.repot_toggle_1_var.get().strip()
+        config.REPOT_TOGGLE_2 = self.repot_toggle_2_var.get().strip()
+        config.REBUFF_TOGGLE_1 = self.rebuff_toggle_1_var.get().strip()
+        config.REBUFF_TOGGLE_2 = self.rebuff_toggle_2_var.get().strip()
+        config.LOOTING_TOGGLE_1 = self.looting_toggle_1_var.get().strip()
+        config.LOOTING_TOGGLE_2 = self.looting_toggle_2_var.get().strip()
+        config.LOOTING_KEYBIND = self.looting_keybind_var.get().strip()
+        try:
+            config.LOOTING_RETRIGGER_INTERVAL = float(self.looting_interval_var.get())
+        except ValueError:
+            pass
         return True
 
     def start(self) -> None:
@@ -955,6 +976,15 @@ class App:
                 self.start_btn.config(state=tk.DISABLED)
                 return
             self.runner.start()
+            # Launch OSD
+            try:
+                from osd import OSDWindow
+                self._osd_root = tk.Toplevel(self.root)
+                self._osd = OSDWindow(self.runner.state, root=self._osd_root)
+            except Exception as exc:
+                from logger import logger
+                logger.error(f"Failed to start OSD: {exc}")
+                self._osd = None
         except Exception as exc:  # e.g. no display / input backend
             logger.error(f"Could not start: {exc}", exc_info=True)
             self._report_error(f"Could not start: {exc}", exc)
@@ -965,6 +995,13 @@ class App:
 
     def stop(self) -> None:
         """Stops the worker threads."""
+                # Close OSD
+        if self._osd is not None:
+            self._osd.close()
+            self._osd = None
+        if self._osd_root is not None:
+            self._osd_root.destroy()
+            self._osd_root = None
         self.runner.stop()
         self.start_btn.config(state=tk.NORMAL)
         self.stop_btn.config(state=tk.DISABLED)
@@ -1107,9 +1144,6 @@ class App:
         ``after`` callbacks and a running calibrator are cancelled first.
         """
         self._closing = True
-        osd = getattr(self, "_osd", None)
-        if osd is not None:
-            osd.close()
         for after_id in (self._refresh_id, self._poll_id):
             if after_id is not None:
                 try:
@@ -1130,41 +1164,10 @@ class App:
 
 
 def launch() -> None:
-    """Creates the main window and spawns the OSD alongside it.
-
-    Start-up failures are shown in a "Configuration Error" dialog (or on
-    stderr when there is no display to show one) instead of a bare traceback.
-    The OSD overlay is optional: if it cannot be created the GUI still runs.
-    """
-    try:
-        root = tk.Tk()
-    except tk.TclError as exc:  # no display: a dialog is impossible
-        logger.error(f"Could not open the GUI: {exc}")
-        print(f"{ERROR_TITLE}: could not open the GUI: {exc}",
-              file=sys.stderr)
-        return
-    try:
-        app = App(root)
-    except Exception as exc:
-        logger.error(f"Could not build the GUI: {exc}", exc_info=True)
-        root.withdraw()
-        messagebox.showerror(ERROR_TITLE, str(exc) or type(exc).__name__)
-        root.destroy()
-        return
-    overlay: tk.Toplevel | None = None
-    try:
-        from osd import OSDWindow
-        overlay = tk.Toplevel(root)
-        overlay.withdraw()
-        osd = OSDWindow(app.runner.state, root=overlay)
-        osd.root.deiconify()
-        app._osd = osd  # type: ignore[attr-defined]
-    except Exception as exc:  # the overlay is optional
-        logger.warning(f"OSD overlay unavailable: {exc}")
-        if overlay is not None:
-            overlay.destroy()
+    """Creates the main window."""
+    root = tk.Tk()
+    app = App(root)
     root.mainloop()
-
 
 if __name__ == "__main__":
     launch()
