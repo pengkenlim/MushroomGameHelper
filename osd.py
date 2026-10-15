@@ -9,7 +9,7 @@ import config
 from state import SharedState
 
 REFRESH_MS: int = 250  # 4 FPS, matching the vision loop
-ALPHA: float = 0.8
+ALPHA: float = 0.5
 # True: mouse clicks pass through to the game, but Escape will NOT work
 #       on Windows (close with Ctrl+C in the terminal instead).
 # False: the overlay can be focused and closed with Escape, but it will
@@ -17,7 +17,7 @@ ALPHA: float = 0.8
 CLICK_THROUGH: bool = True
 BG_COLOR: str = "black"
 FG_COLOR: str = "#00ff66"
-FONT: tuple[str, int, str] = ("Consolas", 11, "bold")
+FONT: tuple[str, int, str] = ("Consolas", 9, "bold")
 POSITION: str = "+10+10"
 
 
