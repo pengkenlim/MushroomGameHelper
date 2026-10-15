@@ -239,6 +239,11 @@ class Action:
         self._lock: threading.Lock = threading.Lock()
         self._held: Set[str] = set()
         self._last_pressed: Dict[str, float] = {}
+        # Timestamp of the last automated press (enforces GLOBAL_RESOLUTION_LIMIT)
+        self._last_auto_press_time: float = 0.0
+        # Timestamp until which the game is assumed to be animating a buff
+        # (enforces BUFF_CAST_LOCKOUT)
+        self._buff_lockout_until: float = 0.0
         self._state: SharedState = state or SharedState()
         # Dispatcher state
         self._queue: List[Tuple[int, str, str]] = []   # (priority, key, reason)
@@ -350,6 +355,35 @@ class Action:
         timer.daemon = True
         timer.start()
 
+    def _can_press(self, is_buff: bool) -> bool:
+        """Checks if an automated press is allowed right now.
+
+        Args:
+            is_buff: True if the pending press is a buff.
+
+        Returns:
+            True if the press is allowed, False if it should be deferred.
+        """
+        now = time.perf_counter()
+        if now - self._last_auto_press_time < config.GLOBAL_RESOLUTION_LIMIT:
+            return False
+        if now < self._buff_lockout_until:
+            return False
+        return True
+
+    def _record_press(self, is_buff: bool) -> None:
+        """Records that an automated press just occurred.
+
+        Args:
+            is_buff: True if the press was a buff (triggers the lockout).
+        """
+        now = time.perf_counter()
+        self._last_auto_press_time = now
+        if is_buff:
+            self._buff_lockout_until = now + config.BUFF_CAST_LOCKOUT
+            logger.debug(
+                f"Buff lockout active until {self._buff_lockout_until:.2f}")
+
     def trigger(self, key: str, cooldown: float, resource: str = "") -> bool:
         """Presses ``key`` unless cooldown or resolution limit blocks it.
 
@@ -366,14 +400,16 @@ class Action:
             logger.warning(
                 f"Refusing to tap '{key}': it is the looting hold key.")
             return False
+        if not self._can_press(is_buff=False):
+            return False
 
         now = time.perf_counter()
 
         last_input = self._state.get("last_input_timestamp", 0.0)
-        if now - last_input < config.RESOLUTION_LIMIT:
+        if now - last_input < config.GLOBAL_RESOLUTION_LIMIT:
             logger.debug(
                 f"Deferring {key}: resolution limit active "
-                f"({config.RESOLUTION_LIMIT - (now - last_input):.2f}s remaining)")
+                f"({config.GLOBAL_RESOLUTION_LIMIT - (now - last_input):.2f}s remaining)")
             return False
 
         with self._lock:
@@ -387,6 +423,7 @@ class Action:
 
         if resource:
             logger.info(f"Triggered {key} due to low {resource}")
+        self._record_press(is_buff=False)
         self.press_async(key)
 
         with self._lock:
@@ -412,10 +449,17 @@ class Action:
                 logger.warning(
                     f"Skipping buff key '{keybind}': it is the looting hold key.")
                 continue
+            if not self._can_press(is_buff=True):
+                remaining = keybinds[index:]
+                for remaining_kb in remaining:
+                    self._state.append_buff_press(remaining_kb)
+                logger.debug(
+                    f"Deferring {len(remaining)} buff(s) due to lockout/resolution limit.")
+                return
 
             now = time.perf_counter()
             last_input = self._state.get("last_input_timestamp", 0.0)
-            if now - last_input < config.RESOLUTION_LIMIT:
+            if now - last_input < config.GLOBAL_RESOLUTION_LIMIT:
                 remaining = keybinds[index:]
                 logger.debug(
                     f"Deferring {len(remaining)} buff(s): resolution limit active")
@@ -431,6 +475,7 @@ class Action:
 
             try:
                 self.press(keybind)
+                self._record_press(is_buff=True)
                 self._last_buff_input = time.perf_counter()
                 self._state.set("last_input_timestamp", time.perf_counter())
             except Exception as exc:
@@ -452,8 +497,11 @@ class Action:
             return
         if hold_duration <= 0:
             return
+        if not self._can_press(is_buff=False):
+            return
         try:
             self.hold(keybind)
+            self._record_press(is_buff=False)
             self._state.set("last_input_timestamp", time.perf_counter())
         except Exception as exc:
             logger.error(f"Failed to hold loot key '{keybind}': {exc}")
@@ -524,10 +572,10 @@ class Action:
             return
         now = time.perf_counter()
         last_input = self._state.get("last_input_timestamp", 0.0)
-        if now - last_input < config.RESOLUTION_LIMIT:
+        if now - last_input < config.GLOBAL_RESOLUTION_LIMIT:
             logger.debug(
                 f"Deferring action: resolution limit active "
-                f"({config.RESOLUTION_LIMIT - (now - last_input):.2f}s remaining)")
+                f"({config.GLOBAL_RESOLUTION_LIMIT - (now - last_input):.2f}s remaining)")
             return
         if now - self._last_automated_input < config.GLOBAL_ACTION_COOLDOWN:
             return  # budget exhausted; retried on the next 10 Hz tick
@@ -542,7 +590,11 @@ class Action:
         entry = self._pop_next()
         if entry is None:
             return
-        _priority, key, reason = entry
+        priority, key, reason = entry
+        is_buff = priority == PRIORITY_BUFF
+        if not self._can_press(is_buff=is_buff):
+            self._queue.append(entry)
+            return
         # Per-key cooldown still applies (prevents heal spam).
         per_key = config.HEALTH.cooldown if reason == "health" else (
             config.MANA.cooldown if reason == "mana" else 0.0)
@@ -554,6 +606,7 @@ class Action:
             self._last_pressed[key] = now
         self._last_automated_input = time.perf_counter()
         logger.info(f"Dispatching '{key}' ({reason})")
+        self._record_press(is_buff=is_buff)
         self.press_async(key)
         self._state.set("last_input_timestamp", time.perf_counter())
         with self._lock:

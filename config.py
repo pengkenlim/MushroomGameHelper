@@ -325,25 +325,30 @@ CAPTURE_HEIGHT: int = _loaded.capture.height
 WINDOW_TITLE: str = _loaded.capture.window_title
 
 # Seconds between window-bounds re-checks while running (0 disables).
-WINDOW_REFRESH_INTERVAL: float = 5.0
+WINDOW_REFRESH_INTERVAL: float = 2.0
 
 # Loop intervals (seconds).
-VISION_INTERVAL: float = 0.25  # ~4 FPS
-ACTION_INTERVAL: float = 0.10  # ~10 Hz
+VISION_INTERVAL: float = 0.05  # ~20 FPS
+ACTION_INTERVAL: float = 0.01  # ~100 Hz
 
 # --- Action dispatcher ---
-# Minimum time (seconds) between ANY two key presses (automated or user).
-# Represents the game engine's input detection resolution. Presses closer
-# than this will be missed by the game. Tool actions are deferred if they
-# would violate this limit relative to the last input (user or automated).
-RESOLUTION_LIMIT: float = 0.1
+# Minimum time (seconds) between ANY two automated presses. Prevents
+# OS/hardware dropping of simultaneous synthetic keystrokes.
+GLOBAL_RESOLUTION_LIMIT: float = 0.005
+# Time (seconds) the game engine is "locked" in a buff cast animation.
+# After the bot presses a buff key, ALL other automated actions (heals,
+# pots, loots, other buffs) are suppressed for this duration because the
+# game will ignore them.
+BUFF_CAST_LOCKOUT: float = 0.6
+# Backward-compatible alias used by earlier action timing checks.
+RESOLUTION_LIMIT: float = GLOBAL_RESOLUTION_LIMIT
 # Minimum seconds between ANY two automated key presses. Prevents the game
 # engine's limited input buffer from dropping simultaneous presses.
-GLOBAL_ACTION_COOLDOWN: float = 0.15
+GLOBAL_ACTION_COOLDOWN: float = 0.005
 # Minimum seconds between two loot taps.
-LOOT_TAP_INTERVAL: float = 0.25
+LOOT_TAP_INTERVAL: float = 0.10
 # Maximum pending requests held by the dispatcher queue.
-ACTION_QUEUE_MAX: int = 20
+ACTION_QUEUE_MAX: int = 500
 # Physical keys the user may hold before low-priority actions are deferred.
 MAX_PHYSICAL_KEYS: int = 2
 # When True, heal/mana also defer under physical contention. When False only
