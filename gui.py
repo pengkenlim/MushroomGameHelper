@@ -536,6 +536,9 @@ class App:
         ``after`` callbacks and a running calibrator are cancelled first.
         """
         self._closing = True
+        osd = getattr(self, "_osd", None)
+        if osd is not None:
+            osd.close()
         for after_id in (self._refresh_id, self._poll_id):
             if after_id is not None:
                 try:
@@ -553,9 +556,18 @@ class App:
 
 
 def launch() -> None:
-    """Creates the window and runs the Tk main loop."""
+    """Creates the main window and spawns the OSD alongside it."""
     root = tk.Tk()
-    App(root)
+    app = App(root)
+    try:
+        from osd import OSDWindow
+        overlay = tk.Toplevel(root)
+        overlay.withdraw()
+        osd = OSDWindow(app.runner.state, root=overlay)
+        osd.root.deiconify()
+        app._osd = osd  # type: ignore[attr-defined]
+    except Exception:
+        pass
     root.mainloop()
 
 
