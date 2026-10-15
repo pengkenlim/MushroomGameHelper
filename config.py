@@ -4,7 +4,7 @@ import json
 import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 CALIBRATION_PATH: Path = Path(__file__).resolve().parent / "calibration.json"
 SCHEDULES_PATH: Path = Path(__file__).resolve().parent / "schedules.json"
@@ -334,21 +334,24 @@ ACTION_INTERVAL: float = 0.01  # ~100 Hz
 # --- Action dispatcher ---
 # Minimum time (seconds) between ANY two automated presses. Prevents
 # OS/hardware dropping of simultaneous synthetic keystrokes.
-GLOBAL_RESOLUTION_LIMIT: float = 0.005
+GLOBAL_RESOLUTION_LIMIT: float = 0.01
 # Time (seconds) the game engine is "locked" in a buff cast animation.
 # After the bot presses a buff key, ALL other automated actions (heals,
 # pots, loots, other buffs) are suppressed for this duration because the
 # game will ignore them.
-BUFF_CAST_LOCKOUT: float = 0.6
+BUFF_CAST_LOCKOUT: float = 0.7
 # Backward-compatible alias used by earlier action timing checks.
 RESOLUTION_LIMIT: float = GLOBAL_RESOLUTION_LIMIT
 # Minimum seconds between ANY two automated key presses. Prevents the game
 # engine's limited input buffer from dropping simultaneous presses.
-GLOBAL_ACTION_COOLDOWN: float = 0.005
+GLOBAL_ACTION_COOLDOWN: float = 0.01
 # Minimum seconds between two loot taps.
-LOOT_TAP_INTERVAL: float = 0.10
+LOOT_TAP_INTERVAL: float = 0.1
 # Maximum pending requests held by the dispatcher queue.
 ACTION_QUEUE_MAX: int = 500
+# Keys that the user holds for movement/jumping. These do NOT consume the
+# game engine's action input buffer, so they are excluded from the contention count.
+IGNORED_PHYSICAL_KEYS: Set[str] = {"left", "right", "up", "down", "space"}
 # Physical keys the user may hold before low-priority actions are deferred.
 MAX_PHYSICAL_KEYS: int = 2
 # When True, heal/mana also defer under physical contention. When False only

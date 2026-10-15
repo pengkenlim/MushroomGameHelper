@@ -133,10 +133,27 @@ class KeyComboListener:
             new_state = self._state.toggle(flag_name)
             logger.info(f"{flag_name} toggled: {flag_name}={new_state}")
 
+    @staticmethod
+    def _bot_key_names() -> Set[str]:
+        """Returns the normalized set of keys the bot itself presses."""
+        raw = [
+            config.HEALTH.keybind, config.MANA.keybind, config.LOOTING_KEYBIND,
+            config.LOOTING_TOGGLE_1, config.LOOTING_TOGGLE_2,
+            config.REPOT_TOGGLE_1, config.REPOT_TOGGLE_2,
+            config.REBUFF_TOGGLE_1, config.REBUFF_TOGGLE_2,
+        ]
+        for schedule in config.load_schedules():
+            raw.append(schedule.keybind)
+        return {normalize_key_name(str(k).strip().lower()) for k in raw if k}
+
     def _publish_physical_count(self) -> None:
-        """Writes the current physical key count to the shared state."""
+        """Publishes the count of physical action keys held to SharedState."""
+        bot_keys = self._bot_key_names()
+        ignored = config.IGNORED_PHYSICAL_KEYS
+        with self._pressed_lock:
+            count = len(self._physical - bot_keys - ignored)
         try:
-            self._state.set("physical_keys_held", len(self._physical))
+            self._state.set("physical_keys_held", count)
         except Exception as exc:
             logger.debug(f"Could not publish physical key count: {exc}")
 
@@ -169,8 +186,7 @@ class KeyComboListener:
         fire: Optional[str] = None
         with self._pressed_lock:
             self._pressed.add(name)
-            if name not in bot_key_names():
-                self._physical.add(name)
+            self._physical.add(name)
             if {self._looting_key1, self._looting_key2}.issubset(self._pressed):
                 self._pressed.clear()
                 fire = "looting_active"
