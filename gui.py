@@ -885,64 +885,30 @@ class App:
         messagebox.showerror(ERROR_TITLE, str(detail) or status)
 
     def apply_settings(self) -> bool:
-        """Validates every dashboard entry and writes it into ``config``.
-
-        All values are parsed before anything is applied, so a typo never
-        leaves ``config`` half-updated. An invalid value updates the status
-        line and opens a "Configuration Error" dialog.
-
-        Returns:
-            True if all values were valid and applied.
-        """
+        """Validates the entries and writes them into ``config``."""
+        parsed: Dict[str, float] = {}
         try:
-            region = {
-                attr: int(self._parse_number(
-                    label, self.fields[attr].get(), minimum=minimum))
-                for attr, label, minimum in REGION_FIELDS}
-            match_threshold = self._parse_number(
-                "Match threshold", self.fields["MATCH_THRESHOLD"].get(),
-                minimum=0.0, maximum=1.0)
-            hp_threshold = self._parse_number(
-                "HP Threshold %", self.hp_threshold_var.get(), 0.0, 100.0)
-            hp_cooldown = self._parse_number(
-                "HP Cooldown", self.hp_cooldown_var.get(), minimum=0.0)
-            mp_threshold = self._parse_number(
-                "MP Threshold %", self.mp_threshold_var.get(), 0.0, 100.0)
-            mp_cooldown = self._parse_number(
-                "MP Cooldown", self.mp_cooldown_var.get(), minimum=0.0)
-            looting_interval = self._parse_number(
-                "Looting Interval", self.looting_interval_var.get())
-            if looting_interval <= 0:
-                raise ValueError(
-                    "Looting Interval must be greater than 0 (got "
-                    f"'{self.looting_interval_var.get().strip()}').")
-            for attr, value in region.items():
-                setattr(config, attr, value)
-            config.MATCH_THRESHOLD = match_threshold
-            config.WINDOW_TITLE = self.window_title_var.get().strip()
-            config.HEALTH.threshold_percent = hp_threshold
-            config.HEALTH.keybind = self.hp_keybind_var.get().strip()
-            config.HEALTH.cooldown = hp_cooldown
-            config.MANA.threshold_percent = mp_threshold
-            config.MANA.keybind = self.mp_keybind_var.get().strip()
-            config.MANA.cooldown = mp_cooldown
-            config.REPOT_TOGGLE_1 = self.repot_toggle_1_var.get().strip()
-            config.REPOT_TOGGLE_2 = self.repot_toggle_2_var.get().strip()
-            config.REBUFF_TOGGLE_1 = self.rebuff_toggle_1_var.get().strip()
-            config.REBUFF_TOGGLE_2 = self.rebuff_toggle_2_var.get().strip()
-            config.LOOTING_TOGGLE_1 = self.looting_toggle_1_var.get().strip()
-            config.LOOTING_TOGGLE_2 = self.looting_toggle_2_var.get().strip()
-            config.LOOTING_KEYBIND = self.looting_keybind_var.get().strip()
-            config.LOOTING_RETRIGGER_INTERVAL = looting_interval
+            for attr, var in self.fields.items():
+                value = float(var.get())
+                if attr == "MATCH_THRESHOLD":
+                    if not 0.0 <= value <= 1.0:
+                        raise ValueError("threshold must be 0-1")
+                else:
+                    if value < 0 or (attr.endswith(("WIDTH", "HEIGHT"))
+                                     and value < 1):
+                        raise ValueError(f"invalid {attr}")
+                    value = int(value)
+                parsed[attr] = value
         except ValueError as exc:
-            self._report_error(f"Invalid settings: {exc}", exc)
+            self.status.set(f"Invalid settings: {exc}")
             return False
-        except Exception as exc:  # never leave a bare traceback on stderr
-            logger.error(f"Could not apply settings: {exc}", exc_info=True)
-            self._report_error(f"Could not apply settings: {exc}", exc)
-            return False
-
-        # Apply keybinds and toggles to memory so they take effect on Start
+            
+        # Apply numeric/capture settings
+        for attr, value in parsed.items():
+            setattr(config, attr, value)
+        config.WINDOW_TITLE = self.window_title_var.get().strip()
+        
+        # APPLY KEYBINDS AND TOGGLES TO MEMORY IMMEDIATELY
         config.HEALTH.threshold_percent = float(self.hp_threshold_var.get())
         config.HEALTH.keybind = self.hp_keybind_var.get().strip()
         config.HEALTH.cooldown = float(self.hp_cooldown_var.get())
@@ -960,6 +926,7 @@ class App:
             config.LOOTING_RETRIGGER_INTERVAL = float(self.looting_interval_var.get())
         except ValueError:
             pass
+            
         return True
 
     def start(self) -> None:
