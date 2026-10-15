@@ -331,6 +331,20 @@ WINDOW_REFRESH_INTERVAL: float = 5.0
 VISION_INTERVAL: float = 0.25  # ~4 FPS
 ACTION_INTERVAL: float = 0.10  # ~10 Hz
 
+# --- Action dispatcher ---
+# Minimum seconds between ANY two automated key presses. Prevents the game
+# engine's limited input buffer from dropping simultaneous presses.
+GLOBAL_ACTION_COOLDOWN: float = 0.15
+# Minimum seconds between two loot taps.
+LOOT_TAP_INTERVAL: float = 0.25
+# Maximum pending requests held by the dispatcher queue.
+ACTION_QUEUE_MAX: int = 20
+# Physical keys the user may hold before low-priority actions are deferred.
+MAX_PHYSICAL_KEYS: int = 2
+# When True, heal/mana also defer under physical contention. When False only
+# buff and loot actions defer (survival actions always fire).
+DEFER_CRITICAL_ACTIONS: bool = False
+
 # Temporal filter: number of frames in the rolling median window.
 SMOOTHING_WINDOW: int = 4
 
@@ -371,9 +385,6 @@ SCHEDULER_INTERVAL: float = 0.20
 
 # Minimum seconds between two automated buff key presses (global input gap).
 BUFF_INPUT_COOLDOWN: float = 0.15
-
-# Minimum seconds between ANY two automated key presses to prevent input buffer overflow.
-GLOBAL_ACTION_COOLDOWN: float = 0.15
 
 # How long (seconds) a tap-style key is held.
 DEFAULT_PRESS_DURATION: float = 0.05
