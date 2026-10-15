@@ -26,6 +26,9 @@ MushroomGameHelper takes a picture of a rectangle of your screen four times a se
 | Interface | `Tkinter` | Tabbed GUI (**Dashboard**, **Calibrate Bars**, **Manage Buffs**) and an optional overlay. |
 | Language | Python 3.10+ | Three cooperating threads: vision, scheduler, action. |
 
+<img>
+*The unified Dashboard tab with grouped configuration frames and interactive tooltips.*
+
 > [!NOTE]
 > This project was built for learning and reliability. Use it responsibly and only in games whose terms of service permit automation.
 
@@ -134,6 +137,9 @@ Looting: Inactive (Press ctrl+l to toggle)
 
 The last line is the **looting toggle status**: it shows `Looting: ACTIVE` while the loot key is being held, otherwise `Looting: Inactive` plus the hotkey chord to press.
 
+<img>
+*Easily bind complex inputs like media keys or mouse clicks using the Capture dialog.*
+
 > [!NOTE]
 > The panel shows `Health: 0%` before you press **Start** because vision has not reported yet. That is normal.
 
@@ -161,6 +167,9 @@ Clicks outside the rectangle are ignored. Keys in the OpenCV window:
 | **r** | Redo the bar you are currently on. |
 | **q** or **Esc** | Cancel; nothing is saved. |
 | Closing the window with the title-bar button | Also cancels; nothing is saved. |
+
+<img>
+*Visual ROI selection with high-contrast boundaries and a color-picker indicator.*
 
 **Then answer the terminal prompts** (the OpenCV window closes and the calibrator asks, for each bar):
 
@@ -192,6 +201,9 @@ This tab replaces the old `buff_setup.py` command-line script. It edits `schedul
 | **Keybind** | One character (`f`) or a key name (`f1`, `space`). |
 | **Interval** | Seconds between automatic presses (greater than 0). |
 | **Enabled** | `Yes` or `No`. Disabled schedules are kept but never fire. |
+
+<img>
+*The table-based interface for scheduling timed buffs and potions.*
 
 - **Add** opens a small form for **Name**, **Keybind** and **Interval (s)**; click **Save**. Empty fields, a non-positive interval, or a duplicate name are rejected with a message.
 - **Toggle**: select a row, then click **Toggle** to enable or disable it.
@@ -337,6 +349,18 @@ LOOTING_RETRIGGER_GAP = 0.05
 </details>
 
 <details>
+<summary><b>⌨️ Key Capture</b></summary>
+
+The capture buttons in the Dashboard and config screens let you bind any supported key, media key, or mouse input without typing raw names by hand. This is useful for actions like `media_play_pause`, `volume_mute`, or a mouse click in a game that does not expose a simple text keybind.
+
+- Press the **Capture** button next to a setting.
+- The dialog listens for the next single input only.
+- The captured value is written back into the field immediately and is saved with the rest of your configuration.
+- If you need to bind a modifier combination or a more complex chord, use the normal config fields directly and keep the capture dialog for quick single-input assignments.
+
+</details>
+
+<details>
 <summary><b>📺 On-Screen Display (OSD) &amp; Telemetry</b></summary>
 
 ### The overlay: `--osd`
@@ -355,6 +379,9 @@ MP: 40%
 Looting: OFF
 Active Buffs: [Attack Buff [f1]]
 ```
+
+<img>
+*The semi-transparent, click-through OSD overlay.*
 
 - On Windows, click-through is enabled by default via `CLICK_THROUGH = True` in `osd.py`, and the overlay must be closed with **Ctrl+C** in the terminal.
 - To close the overlay with **Esc** instead, set `CLICK_THROUGH = False` in `osd.py`; the overlay will then intercept mouse clicks over its area.
