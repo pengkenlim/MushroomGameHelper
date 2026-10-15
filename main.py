@@ -48,7 +48,7 @@ def config_summary() -> str:
         f"threshold={config.MANA.threshold_percent}, "
         f"cooldown={config.MANA.cooldown}) "
         f"looting(key={config.LOOTING.keybind}, "
-        f"toggle={config.LOOTING.toggle_key_1}+{config.LOOTING.toggle_key_2}) "
+        f"toggle={config.LOOTING_TOGGLE_1}+{config.LOOTING_TOGGLE_2}) "
         f"intervals(vision={config.VISION_INTERVAL}, "
         f"action={config.ACTION_INTERVAL}, "
         f"scheduler={config.SCHEDULER_INTERVAL})")
@@ -91,7 +91,7 @@ class Runner:
                     f"Window '{config.WINDOW_TITLE}' found: {bounds}")
         stop_event = self._stop = threading.Event()
         vision = self._vision = Vision()
-        action = self._action = Action()
+        action = self._action = Action(state)
         scheduler = self._scheduler = Scheduler()
         state = self.state
         state.clear_buff_presses()

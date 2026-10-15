@@ -101,6 +101,15 @@ class App:
             value=str(config.MANA.threshold_percent))
         self.mp_keybind_var = tk.StringVar(value=config.MANA.keybind)
         self.mp_cooldown_var = tk.StringVar(value=str(config.MANA.cooldown))
+        self.repot_toggle_1_var = tk.StringVar(value=config.REPOT_TOGGLE_1)
+        self.repot_toggle_2_var = tk.StringVar(value=config.REPOT_TOGGLE_2)
+        self.rebuff_toggle_1_var = tk.StringVar(value=config.REBUFF_TOGGLE_1)
+        self.rebuff_toggle_2_var = tk.StringVar(value=config.REBUFF_TOGGLE_2)
+        self.looting_toggle_1_var = tk.StringVar(value=config.LOOTING_TOGGLE_1)
+        self.looting_toggle_2_var = tk.StringVar(value=config.LOOTING_TOGGLE_2)
+        self.looting_keybind_var = tk.StringVar(value=config.LOOTING_KEYBIND)
+        self.looting_interval_var = tk.StringVar(
+            value=str(config.LOOTING_RETRIGGER_INTERVAL))
 
         config_rows = [
             ("HP Threshold %", self.hp_threshold_var),
@@ -109,6 +118,14 @@ class App:
             ("MP Threshold %", self.mp_threshold_var),
             ("MP Keybind", self.mp_keybind_var),
             ("MP Cooldown", self.mp_cooldown_var),
+            ("Repot Toggle 1", self.repot_toggle_1_var),
+            ("Repot Toggle 2", self.repot_toggle_2_var),
+            ("Rebuff Toggle 1", self.rebuff_toggle_1_var),
+            ("Rebuff Toggle 2", self.rebuff_toggle_2_var),
+            ("Looting Toggle 1", self.looting_toggle_1_var),
+            ("Looting Toggle 2", self.looting_toggle_2_var),
+            ("Looting Keybind", self.looting_keybind_var),
+            ("Looting Interval", self.looting_interval_var),
         ]
         for row, (label, var) in enumerate(config_rows, start=6):
             ttk.Label(frame, text=label).grid(row=row, column=0, sticky="w")
@@ -434,6 +451,15 @@ class App:
                     self.mp_threshold_var.get())
                 config.MANA.keybind = self.mp_keybind_var.get().strip()
                 config.MANA.cooldown = float(self.mp_cooldown_var.get())
+                config.REPOT_TOGGLE_1 = self.repot_toggle_1_var.get().strip()
+                config.REPOT_TOGGLE_2 = self.repot_toggle_2_var.get().strip()
+                config.REBUFF_TOGGLE_1 = self.rebuff_toggle_1_var.get().strip()
+                config.REBUFF_TOGGLE_2 = self.rebuff_toggle_2_var.get().strip()
+                config.LOOTING_TOGGLE_1 = self.looting_toggle_1_var.get().strip()
+                config.LOOTING_TOGGLE_2 = self.looting_toggle_2_var.get().strip()
+                config.LOOTING_KEYBIND = self.looting_keybind_var.get().strip()
+                config.LOOTING_RETRIGGER_INTERVAL = float(
+                    self.looting_interval_var.get())
                 config.save_config()
             except ValueError as exc:
                 self.status.set(f"Invalid bar settings: {exc}")
