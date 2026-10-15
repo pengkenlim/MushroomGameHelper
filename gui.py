@@ -74,8 +74,6 @@ TOOLTIPS: Dict[str, str] = {
                        "Autolooting ON/OFF while the bot runs."),
     "looting_keybind": ("Key held down while Autolooting is ON. Leave empty "
                         "to disable looting."),
-    "looting_interval": ("Seconds the key stays held before releasing and "
-                         "re-pressing to defeat game engine ignore-timers."),
     "capture": ("Click, then press any key or mouse button to fill the "
                 "field. Media keys and the left, right and middle mouse "
                 "buttons are supported."),
@@ -486,8 +484,6 @@ class App:
         self.looting_toggle_2_var = tk.StringVar(
             value=config.LOOTING_TOGGLE_2)
         self.looting_keybind_var = tk.StringVar(value=config.LOOTING_KEYBIND)
-        self.looting_interval_var = tk.StringVar(
-            value=str(config.LOOTING_RETRIGGER_INTERVAL))
         self._add_field(group, "Repot Toggle 1", self.repot_toggle_1_var, 0, 0,
                         "repot_toggle", capture=True)
         self._add_field(group, "Repot Toggle 2", self.repot_toggle_2_var, 0, 3,
@@ -502,8 +498,6 @@ class App:
                         2, 3, "looting_toggle", capture=True)
         self._add_field(group, "Looting Keybind", self.looting_keybind_var, 3,
                         0, "looting_keybind", capture=True)
-        self._add_field(group, "Looting Interval", self.looting_interval_var,
-                        3, 3, "looting_interval")
 
     def _build_controls(self, frame: ttk.Frame, row: int) -> None:
         """Builds Start/Stop and the status lines below the settings groups.
@@ -922,11 +916,7 @@ class App:
         config.LOOTING_TOGGLE_1 = self.looting_toggle_1_var.get().strip()
         config.LOOTING_TOGGLE_2 = self.looting_toggle_2_var.get().strip()
         config.LOOTING_KEYBIND = self.looting_keybind_var.get().strip()
-        try:
-            config.LOOTING_RETRIGGER_INTERVAL = float(self.looting_interval_var.get())
-        except ValueError:
-            pass
-            
+
         return True
 
     def start(self) -> None:

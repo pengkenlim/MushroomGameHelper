@@ -372,6 +372,9 @@ SCHEDULER_INTERVAL: float = 0.20
 # Minimum seconds between two automated buff key presses (global input gap).
 BUFF_INPUT_COOLDOWN: float = 0.15
 
+# Minimum seconds between ANY two automated key presses to prevent input buffer overflow.
+GLOBAL_ACTION_COOLDOWN: float = 0.15
+
 # How long (seconds) a tap-style key is held.
 DEFAULT_PRESS_DURATION: float = 0.05
 

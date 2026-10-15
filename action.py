@@ -189,6 +189,7 @@ class Action:
         self._held: Set[str] = set()
         self._last_pressed: Dict[str, float] = {}
         self._last_buff_input: float | None = None
+        self._last_automated_input: float = 0.0
         self._loot_retrigger_time: float = 0.0
         self._loot_last_hold: Optional[float] = None
         self._state: SharedState = state or SharedState()
@@ -324,7 +325,11 @@ class Action:
             logger.warning(
                 f"Refusing to tap '{key}': it is the looting hold key.")
             return False
+
         now = time.perf_counter()
+        if now - self._last_automated_input < config.GLOBAL_ACTION_COOLDOWN:
+            return False
+
         with self._lock:
             last = self._last_pressed.get(key)
             if last is not None and now - last < cooldown:
@@ -333,6 +338,8 @@ class Action:
                     f"({cooldown - (now - last):.2f}s remaining)")
                 return False
             self._last_pressed[key] = now
+
+        self._last_automated_input = now
         if resource:
             logger.info(f"Triggered {key} due to low {resource}")
         self.press_async(key)
@@ -397,48 +404,47 @@ class Action:
                         - (time.perf_counter() - self._last_buff_input))
                 if wait > 0:
                     time.sleep(wait)
+
+            now = time.perf_counter()
+            if now - self._last_automated_input < config.GLOBAL_ACTION_COOLDOWN:
+                time.sleep(config.GLOBAL_ACTION_COOLDOWN -
+                           (now - self._last_automated_input))
+                now = time.perf_counter()
+
             try:
                 self.press(keybind)
             finally:
-                self._last_buff_input = time.perf_counter()
+                self._last_buff_input = now
+                self._last_automated_input = now
 
     def manage_looting(self, looting_active: bool) -> None:
-        """Holds the looting key, re-triggering it on a fixed interval.
-
-        Game engines commonly stop responding to a key that has been held
-        for too long. To defeat this the key is released and pressed again
-        every ``config.LOOTING_RETRIGGER_INTERVAL`` seconds, with a short
-        ``config.LOOTING_RETRIGGER_GAP`` pause so the engine sees two
-        distinct events. When looting is inactive the key is released and
-        the retrigger clock is reset.
-
-        Args:
-            looting_active: Current toggle state from ``SharedState``.
+        """Rapidly taps the looting key to avoid input buffer conflicts.
+        
+        MapleStory Worlds limits simultaneous held keys. By switching to 
+        rapid taps (machine-gun style), we free up the input buffer for 
+        your movement and attack keys.
         """
         keybind = config.LOOTING_KEYBIND.strip()
         if not keybind:
             return
+
         if not looting_active:
+            # Ensure the key is released when toggled off
             self.release(keybind)
             self._loot_last_hold = None
             return
-        now = time.perf_counter()
-        with self._lock:
-            is_held = keybind in self._held
-        if not is_held:
-            self.hold(keybind)
-            self._loot_last_hold = now
-            logger.info(f"Looting: holding '{keybind}'")
-            return
-        if (self._loot_last_hold is not None
-                and now - self._loot_last_hold
-                >= config.LOOTING_RETRIGGER_INTERVAL):
-            self.release(keybind)
-            time.sleep(config.LOOTING_RETRIGGER_GAP)
-            self.hold(keybind)
-            self._loot_last_hold = time.perf_counter()
-            logger.debug(f"Looting: re-triggered '{keybind}'")
 
+        now = time.perf_counter()
+        if now - self._last_automated_input < config.GLOBAL_ACTION_COOLDOWN:
+            return
+
+        self._last_automated_input = now
+
+        # Tap the key every 0.2 seconds (200ms)
+        # This mimics holding without occupying a permanent input slot.
+        if self._loot_last_hold is None or now - self._loot_last_hold >= 0.2:
+            self.press_async(keybind, duration=0.05)
+            self._loot_last_hold = now
     def run_cycle(self, state: SharedState) -> None:
         """Runs one action cycle: scheduled buffs first, then reactive keys.
 
