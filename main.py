@@ -91,9 +91,9 @@ class Runner:
                     f"Window '{config.WINDOW_TITLE}' found: {bounds}")
         stop_event = self._stop = threading.Event()
         vision = self._vision = Vision()
+        state = self.state
         action = self._action = Action(state)
         scheduler = self._scheduler = Scheduler()
-        state = self.state
         state.clear_buff_presses()
         state.set("looting_active", False)
         listener = self._combo_listener = KeyComboListener(state)
