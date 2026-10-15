@@ -27,6 +27,9 @@ MushroomGameHelper takes a picture of a rectangle of your screen four times a se
 | **Key capture** | Records any key, media key or mouse button for you. | **Capture** buttons |
 | **OSD overlay** | Always-on-top status box: HP, MP, toggles, recent key presses and buff timers. | Appears automatically with the GUI |
 
+<img>
+*The unified Dashboard tab with grouped configuration frames and interactive tooltips.*
+
 | Layer | Technology | Role |
 | --- | --- | --- |
 | Capture | `mss` | Grabs the configured screen region. |
@@ -155,6 +158,9 @@ Settings are grouped into three boxes. **Start**, **Stop** and the status area s
 
 Every key field has a **Capture** button. See [Key Capture](#key-capture) and [Dual-Key Toggles](#dual-key-toggles).
 
+<img>
+*Easily bind complex inputs like media keys or mouse clicks using the Capture dialog.*
+
 #### ▶️ Start, Stop and status
 
 | Element | What it does |
@@ -218,6 +224,9 @@ Clicks outside the rectangle are ignored. Keys in the OpenCV window:
 | **q** or **Esc** | Cancel; nothing is saved. |
 | Closing the window with the title-bar button | Also cancels; nothing is saved. |
 
+<img>
+*Visual ROI selection with high-contrast boundaries and a color-picker indicator.*
+
 As soon as the Mana bar is done, the calibrator writes `calibration.json` and closes. The main window comes back by itself, reloads the file, enables **Start** and returns you to the **Dashboard**. If you cancel, the main window comes back too and nothing changes.
 
 > [!NOTE]
@@ -245,6 +254,9 @@ This tab edits `schedules.json` for you (it replaces the old `buff_setup.py` scr
 | **Keybind** | One character (`f`) or a key name (`f1`, `space`). |
 | **Interval** | Seconds between automatic presses (greater than 0). |
 | **Enabled** | `Yes` or `No`. Disabled schedules are kept but never fire. |
+
+<img>
+*The table-based interface for scheduling timed buffs and potions.*
 
 - **Add** opens a small form for **Name**, **Keybind** and **Interval (s)**; click **Save**. Empty fields, a non-positive interval or a duplicate name are rejected with a message.
 - **Toggle**: select a row, then click **Toggle** to enable or disable it.
@@ -424,6 +436,9 @@ Recent Actions: 14:02:11 - Pressed 'h' | 14:02:19 - Pressed 'f1' | 14:02:25 - Pr
 Active Buffs: [Attack Buff [f1], Defense Buff [f2]]
 Buff countdowns: Attack Buff in 62.3s | Defense Buff in 120.0s
 ```
+
+<img>
+*The semi-transparent, click-through OSD overlay.*
 
 | Line | Meaning |
 | --- | --- |
