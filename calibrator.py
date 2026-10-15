@@ -88,6 +88,7 @@ class CalibrationSession:
     step: Step = Step.DRAW_ROI
     _drag_start: Optional[Tuple[int, int]] = None
     _drag_now: Optional[Tuple[int, int]] = None
+    _mouse_pos: Optional[Tuple[int, int]] = None
 
     @property
     def bar(self) -> str:
@@ -123,6 +124,8 @@ class CalibrationSession:
         """
         if self.finished:
             return
+        if event == cv2.EVENT_MOUSEMOVE:
+            self._mouse_pos = (x, y)
         if self.step is Step.DRAW_ROI:
             if event == cv2.EVENT_LBUTTONDOWN:
                 self._drag_start = self._drag_now = (x, y)
@@ -138,9 +141,6 @@ class CalibrationSession:
                     self.step = Step.PICK_FULL
         elif event == cv2.EVENT_LBUTTONDOWN:
             sample = self.samples[self.bar]
-            rx, ry, rw, rh = sample.roi or (0, 0, 0, 0)
-            if not (rx <= x < rx + rw and ry <= y < ry + rh):
-                return  # sample must be inside the ROI
             patch = self.image[max(0, y - 1):y + 2, max(0, x - 1):x + 2]
             b, g, r = (int(c) for c in patch.reshape(-1, 3).mean(axis=0))
             hsv = bgr_to_hsv((b, g, r))
@@ -168,32 +168,57 @@ class CalibrationSession:
         for name, s in self.samples.items():
             if s.roi:
                 x, y, w, h = s.roi
-                cv2.rectangle(canvas, (x, y), (x + w, y + h), (0, 255, 0), 1)
+                cv2.rectangle(canvas, (x, y), (x + w, y + h), (0, 255, 0), 3)
                 cv2.putText(canvas, name, (x, max(10, y - 4)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
         if self._drag_start and self._drag_now:
             cv2.rectangle(canvas, self._drag_start, self._drag_now,
-                          (0, 255, 255), 1)
-        cv2.putText(canvas, self.prompt(), (5, 15),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                          (0, 255, 255), 3)
+
+        prompt = self.prompt()
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.5
+        thickness = 2
+        text_size, _ = cv2.getTextSize(prompt, font, font_scale, thickness)
+        pad = 6
+        rect_top_left = (2, 2)
+        rect_bottom_right = (2 + text_size[0] + pad, 2 + text_size[1] + pad)
+        cv2.rectangle(canvas, rect_top_left, rect_bottom_right, (0, 0, 0), -1)
+        cv2.putText(canvas, prompt, (5, 15), font, font_scale,
+                    (255, 255, 255), thickness)
+
+        if self.step in (Step.PICK_FULL, Step.PICK_EMPTY) and self._mouse_pos:
+            x, y = self._mouse_pos
+            if 0 <= y < canvas.shape[0] and 0 <= x < canvas.shape[1]:
+                color = tuple(int(c) for c in canvas[y, x])
+                cv2.circle(canvas, (x, y), 6, color, -1)
+                cv2.circle(canvas, (x, y), 6, (255, 255, 255), 1)
         return canvas
 
-    def bar_configs(self, answers: Dict[str, Tuple[float, str, float]]
+    def bar_configs(self, answers: Optional[Dict[str, Tuple[float, str, float]]] = None
                     ) -> Dict[str, BarConfig]:
-        """Combines samples and terminal answers into bar configs.
+        """Combines samples with action settings into bar configs.
 
         Args:
-            answers: Bar name -> ``(threshold_percent, keybind, cooldown)``.
+            answers: Optional bar name -> ``(threshold_percent, keybind,
+                cooldown)``. When omitted, existing ``config.HEALTH`` and
+                ``config.MANA`` values are reused.
 
         Returns:
             Bar name -> :class:`BarConfig`.
         """
+        answers = answers or {}
         out: Dict[str, BarConfig] = {}
         for name, s in self.samples.items():
             assert s.roi and s.full_hsv and s.empty_hsv
             fl, fu = tolerance_range(s.full_hsv)
             el, eu = tolerance_range(s.empty_hsv)
-            pct, key, cd = answers[name]
+            existing = config.HEALTH if name == "Health" else config.MANA
+            pct, key, cd = answers.get(name, (
+                existing.threshold_percent,
+                existing.keybind,
+                existing.cooldown,
+            ))
             out[name] = BarConfig(roi=s.roi, full_lower=fl, full_upper=fu,
                                   empty_lower=el, empty_upper=eu,
                                   threshold_percent=pct, keybind=key,
@@ -303,13 +328,7 @@ def main() -> int:
     if not run_window(session):
         print("Aborted; nothing saved.")
         return 1
-    answers: Dict[str, Tuple[float, str, float]] = {}
-    for name in BAR_NAMES:
-        pct = ask_float(f"Enter {name} % threshold [0-100]: ", 0, 100)
-        key = ask_key(f"Key to press when {name} is low: ")
-        cd = ask_float(f"{name} cooldown in seconds [0-3600]: ", 0, 3600)
-        answers[name] = (pct, key, cd)
-    bars = session.bar_configs(answers)
+    bars = session.bar_configs()
     config.HEALTH = bars["Health"]
     config.MANA = bars["Mana"]
     config.save_config()

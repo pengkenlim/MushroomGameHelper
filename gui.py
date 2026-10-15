@@ -58,27 +58,54 @@ class App:
                 row=row, column=1, padx=5, pady=2)
             self.fields[attr] = var
 
+        self.hp_threshold_var = tk.StringVar(
+            value=str(config.HEALTH.threshold_percent))
+        self.hp_keybind_var = tk.StringVar(value=config.HEALTH.keybind)
+        self.hp_cooldown_var = tk.StringVar(value=str(config.HEALTH.cooldown))
+        self.mp_threshold_var = tk.StringVar(
+            value=str(config.MANA.threshold_percent))
+        self.mp_keybind_var = tk.StringVar(value=config.MANA.keybind)
+        self.mp_cooldown_var = tk.StringVar(value=str(config.MANA.cooldown))
+
+        config_rows = [
+            ("HP Threshold %", self.hp_threshold_var),
+            ("HP Keybind", self.hp_keybind_var),
+            ("HP Cooldown", self.hp_cooldown_var),
+            ("MP Threshold %", self.mp_threshold_var),
+            ("MP Keybind", self.mp_keybind_var),
+            ("MP Cooldown", self.mp_cooldown_var),
+        ]
+        for row, (label, var) in enumerate(config_rows, start=len(settings)):
+            ttk.Label(frame, text=label).grid(row=row, column=0, sticky="w")
+            ttk.Entry(frame, textvariable=var, width=12).grid(
+                row=row, column=1, padx=5, pady=2)
+
         ttk.Label(frame, text="Window title").grid(
-            row=len(settings), column=0, sticky="w")
+            row=len(settings) + len(config_rows), column=0, sticky="w")
         self.window_title_var = tk.StringVar(value=config.WINDOW_TITLE)
         ttk.Entry(frame, textvariable=self.window_title_var, width=24).grid(
-            row=len(settings), column=1, padx=5, pady=2)
+            row=len(settings) + len(config_rows), column=1, padx=5, pady=2)
         ttk.Label(frame, text="(blank = use static Top/Left/Width/Height)",
                   foreground="grey").grid(
-            row=len(settings) + 1, column=0, columnspan=2, sticky="w")
+            row=len(settings) + len(config_rows) + 1, column=0, columnspan=2,
+            sticky="w")
 
         self.start_btn = ttk.Button(frame, text="Start", command=self.start)
         self.stop_btn = ttk.Button(frame, text="Stop", command=self.stop,
                                    state=tk.DISABLED)
-        self.start_btn.grid(row=len(settings) + 2, column=0, pady=8)
-        self.stop_btn.grid(row=len(settings) + 2, column=1, pady=8)
+        self.start_btn.grid(row=len(settings) + len(config_rows) + 2, column=0,
+                            pady=8)
+        self.stop_btn.grid(row=len(settings) + len(config_rows) + 2, column=1,
+                           pady=8)
 
         self.status = tk.StringVar(value="Idle")
         self.info = tk.StringVar(value="")
         ttk.Label(frame, textvariable=self.status, wraplength=320).grid(
-            row=len(settings) + 3, column=0, columnspan=2, sticky="w")
+            row=len(settings) + len(config_rows) + 3, column=0,
+            columnspan=2, sticky="w")
         ttk.Label(frame, textvariable=self.info, justify=tk.LEFT).grid(
-            row=len(settings) + 4, column=0, columnspan=2, sticky="w")
+            row=len(settings) + len(config_rows) + 4, column=0,
+            columnspan=2, sticky="w")
 
         self._build_calibrate_tab()
         self._build_buffs_tab()
@@ -350,7 +377,17 @@ class App:
         """Persists the current settings to ``calibration.json``."""
         if self.apply_settings():
             try:
+                config.HEALTH.threshold_percent = float(
+                    self.hp_threshold_var.get())
+                config.HEALTH.keybind = self.hp_keybind_var.get().strip()
+                config.HEALTH.cooldown = float(self.hp_cooldown_var.get())
+                config.MANA.threshold_percent = float(
+                    self.mp_threshold_var.get())
+                config.MANA.keybind = self.mp_keybind_var.get().strip()
+                config.MANA.cooldown = float(self.mp_cooldown_var.get())
                 config.save_config()
+            except ValueError as exc:
+                self.status.set(f"Invalid bar settings: {exc}")
             except OSError as exc:
                 self.status.set(f"Save failed: {exc}")
 
