@@ -2,6 +2,7 @@
 
 import subprocess
 import sys
+import threading
 import time
 import tkinter as tk
 import webbrowser
@@ -113,25 +114,29 @@ class App:
             value=str(config.LOOTING_RETRIGGER_INTERVAL))
 
         config_rows = [
-            ("HP Threshold %", self.hp_threshold_var),
-            ("HP Keybind", self.hp_keybind_var),
-            ("HP Cooldown", self.hp_cooldown_var),
-            ("MP Threshold %", self.mp_threshold_var),
-            ("MP Keybind", self.mp_keybind_var),
-            ("MP Cooldown", self.mp_cooldown_var),
-            ("Repot Toggle 1", self.repot_toggle_1_var),
-            ("Repot Toggle 2", self.repot_toggle_2_var),
-            ("Rebuff Toggle 1", self.rebuff_toggle_1_var),
-            ("Rebuff Toggle 2", self.rebuff_toggle_2_var),
-            ("Looting Toggle 1", self.looting_toggle_1_var),
-            ("Looting Toggle 2", self.looting_toggle_2_var),
-            ("Looting Keybind", self.looting_keybind_var),
-            ("Looting Interval", self.looting_interval_var),
+            ("HP Threshold %", self.hp_threshold_var, False),
+            ("HP Keybind", self.hp_keybind_var, True),
+            ("HP Cooldown", self.hp_cooldown_var, False),
+            ("MP Threshold %", self.mp_threshold_var, False),
+            ("MP Keybind", self.mp_keybind_var, True),
+            ("MP Cooldown", self.mp_cooldown_var, False),
+            ("Repot Toggle 1", self.repot_toggle_1_var, True),
+            ("Repot Toggle 2", self.repot_toggle_2_var, True),
+            ("Rebuff Toggle 1", self.rebuff_toggle_1_var, True),
+            ("Rebuff Toggle 2", self.rebuff_toggle_2_var, True),
+            ("Looting Toggle 1", self.looting_toggle_1_var, True),
+            ("Looting Toggle 2", self.looting_toggle_2_var, True),
+            ("Looting Keybind", self.looting_keybind_var, True),
+            ("Looting Interval", self.looting_interval_var, False),
         ]
-        for row, (label, var) in enumerate(config_rows, start=6):
+        for row, (label, var, capture) in enumerate(config_rows, start=6):
             ttk.Label(frame, text=label).grid(row=row, column=0, sticky="w")
             ttk.Entry(frame, textvariable=var, width=12).grid(
                 row=row, column=1, padx=5, pady=2)
+            if capture:
+                ttk.Button(frame, text="Capture",
+                           command=lambda v=var: self.do_capture(v)).grid(
+                               row=row, column=2, padx=(0, 5), pady=2)
 
         self.start_btn = ttk.Button(frame, text="Start", command=self.start)
         self.stop_btn = ttk.Button(frame, text="Stop", command=self.stop,
@@ -387,6 +392,33 @@ class App:
 
         ttk.Button(dialog, text="Save", command=submit).grid(
             row=4, column=0, columnspan=2, pady=5)
+
+    def do_capture(self, target_var: tk.StringVar) -> None:
+        """Opens a non-blocking capture dialog for one key or mouse input."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Key Capture")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.label = ttk.Label(dialog, text="Press any key or mouse button...")
+        dialog.label.pack(padx=20, pady=20)
+        result_container: Dict[str, str | None] = {"val": None}
+
+        def run_capture() -> None:
+            """Runs the key-capture helper in a worker thread."""
+            from key_capture import capture_single_input
+            result_container["val"] = capture_single_input()
+
+        def check_result() -> None:
+            """Polls until the capture thread finishes and then stores the value."""
+            if result_container["val"] is not None:
+                target_var.set(result_container["val"])
+                dialog.destroy()
+                return
+            self.root.after(100, check_result)
+
+        capture_thread = threading.Thread(target=run_capture, daemon=True)
+        capture_thread.start()
+        self.root.after(100, check_result)
 
     def apply_settings(self) -> bool:
         """Validates the entries and writes them into ``config``.

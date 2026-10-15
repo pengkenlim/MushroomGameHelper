@@ -4,13 +4,24 @@ import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Set, Union
 
-from pynput.keyboard import Controller, Key, KeyCode, Listener
+from pynput.keyboard import Controller as KeyboardController, Key, KeyCode, Listener
+from pynput.mouse import Button as MouseButton, Controller as MouseController
 
 import config
 from logger import logger
 from state import SharedState
 
 KeyType = Union[Key, KeyCode]
+
+SPECIAL_KEYS: Dict[str, object] = {
+    "mouse_left": MouseButton.left,
+    "mouse_right": MouseButton.right,
+    "mouse_middle": MouseButton.middle,
+    "media_play_pause": Key.media_play_pause,
+    "media_volume_up": Key.media_volume_up,
+    "media_volume_down": Key.media_volume_down,
+    "media_volume_mute": Key.media_volume_mute,
+}
 
 # Left/right modifier variants are folded into one logical name so that a
 # chord such as ``ctrl+l`` matches either physical Ctrl key.
@@ -172,7 +183,8 @@ class Action:
 
     def __init__(self, state: SharedState | None = None) -> None:
         """Creates the keyboard controller."""
-        self._keyboard: Controller = Controller()
+        self._keyboard: KeyboardController = KeyboardController()
+        self._mouse: MouseController = MouseController()
         self._lock: threading.Lock = threading.Lock()
         self._held: Set[str] = set()
         self._last_pressed: Dict[str, float] = {}
@@ -182,18 +194,23 @@ class Action:
         self._state: SharedState = state or SharedState()
 
     @staticmethod
-    def _resolve(name: str) -> KeyType:
-        """Resolves a keybind name to a pynput key.
+    def _resolve(name: str) -> KeyType | MouseButton:
+        """Resolves a keybind name to a pynput key or mouse button.
 
         Args:
             name: Logical action name (in ``config.KEYBINDS``) or key name.
 
         Returns:
-            A pynput key object.
+            A pynput key or mouse button object.
         """
-        raw = config.KEYBINDS.get(name, name)
-        special = getattr(Key, raw if len(raw) == 1 else raw.lower(), None)
-        return special if isinstance(special, Key) else KeyCode.from_char(raw)
+        raw = config.KEYBINDS.get(name, name).lower().strip()
+        if raw in SPECIAL_KEYS:
+            return SPECIAL_KEYS[raw]
+        if hasattr(Key, raw):
+            return getattr(Key, raw)
+        if len(raw) == 1:
+            return KeyCode.from_char(raw)
+        raise ValueError(f"Unknown keybind: {raw}")
 
     def press(self, name: str, duration: float = config.DEFAULT_PRESS_DURATION
               ) -> None:
@@ -204,11 +221,18 @@ class Action:
             duration: Seconds to hold the key.
         """
         key = self._resolve(name)
-        self._keyboard.press(key)
-        try:
-            time.sleep(duration)
-        finally:
-            self._keyboard.release(key)
+        if isinstance(key, MouseButton):
+            self._mouse.press(button=key, click_count=1)
+            try:
+                time.sleep(duration)
+            finally:
+                self._mouse.release(button=key)
+        else:
+            self._keyboard.press(key)
+            try:
+                time.sleep(duration)
+            finally:
+                self._keyboard.release(key)
         with self._lock:
             last_actions = list(self._state.get("last_actions", []))
             last_actions.append({"key": name, "time": time.time()})
@@ -222,7 +246,11 @@ class Action:
         """
         with self._lock:
             if name not in self._held:
-                self._keyboard.press(self._resolve(name))
+                key = self._resolve(name)
+                if isinstance(key, MouseButton):
+                    self._mouse.press(button=key, click_count=1)
+                else:
+                    self._keyboard.press(key)
                 self._held.add(name)
 
     def release(self, name: str) -> None:
@@ -233,7 +261,11 @@ class Action:
         """
         with self._lock:
             if name in self._held:
-                self._keyboard.release(self._resolve(name))
+                key = self._resolve(name)
+                if isinstance(key, MouseButton):
+                    self._mouse.release(button=key)
+                else:
+                    self._keyboard.release(key)
                 self._held.discard(name)
 
     def release_all(self) -> None:
@@ -241,7 +273,11 @@ class Action:
         with self._lock:
             for name in list(self._held):
                 try:
-                    self._keyboard.release(self._resolve(name))
+                    key = self._resolve(name)
+                    if isinstance(key, MouseButton):
+                        self._mouse.release(button=key)
+                    else:
+                        self._keyboard.release(key)
                 except Exception as exc:
                     logger.error(f"Failed to release '{name}': {exc}")
             self._held.clear()
