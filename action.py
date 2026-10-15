@@ -343,19 +343,29 @@ class Action:
         return True
 
     def decide(self, snapshot: Dict[str, object]) -> None:
-        """Triggers heal/mana keys from a state snapshot, honoring cooldowns.
+        """Triggers heal/mana keys from a state snapshot, honoring cooldowns and toggles.
 
         Args:
             snapshot: Copy of the shared state produced by the vision thread.
         """
+        # Check if the Repot toggle is configured and currently active
+        has_repot_toggles = bool(config.REPOT_TOGGLE_1.strip() and config.REPOT_TOGGLE_2.strip())
+        repot_active = bool(snapshot.get("repot_active", False))
+        
+        # If toggles are configured but Repot is toggled OFF, suppress healing
+        if has_repot_toggles and not repot_active:
+            return
+
         if snapshot.get("health_low"):
-            self.trigger(config.HEALTH.keybind, config.HEALTH.cooldown,
-                         "health")
+            self.trigger(config.HEALTH.keybind, config.HEALTH.cooldown, "health")
         if snapshot.get("mana_low"):
             self.trigger(config.MANA.keybind, config.MANA.cooldown, "mana")
 
     def execute_buff_presses(self, keybinds: List[str]) -> None:
         """Presses scheduled buff keys one after another.
+
+        Only presses if the relevant toggle is active. If no toggles are
+        configured or all are off, buffs are suppressed.
 
         A global gap of ``config.BUFF_INPUT_COOLDOWN`` seconds is enforced
         between consecutive automated presses so keystrokes never overlap.
@@ -363,6 +373,20 @@ class Action:
         Args:
             keybinds: Keys to press, in order.
         """
+        # Check if any auto-action toggle is active
+        # If repot or rebuff toggles exist, at least one must be ON
+        repot_active = self._state.get("repot_active", False)
+        rebuff_active = self._state.get("rebuff_active", False)
+        
+        # If both toggles are explicitly off, suppress all buffs
+        # (If toggles aren't configured, they default to False, so we allow buffs)
+        has_toggles = bool(config.REPOT_TOGGLE_1 and config.REPOT_TOGGLE_2) or \
+                      bool(config.REBUFF_TOGGLE_1 and config.REBUFF_TOGGLE_2)
+        
+        if has_toggles and not (repot_active or rebuff_active):
+            logger.debug("Suppressing buff presses: all toggles are OFF")
+            return
+        
         for keybind in keybinds:
             if keybind == config.LOOTING_KEYBIND.strip() and config.LOOTING_KEYBIND:
                 logger.warning(
