@@ -1,9 +1,11 @@
 """On-screen display: a small always-on-top overlay showing bot status."""
 
 import sys
+import time
 import tkinter as tk
 from typing import Any, Callable, Dict, List, Optional
 
+import config
 from state import SharedState
 
 REFRESH_MS: int = 250  # 4 FPS, matching the vision loop
@@ -43,6 +45,38 @@ def format_buffs(schedule_status: Optional[List[Dict[str, Any]]]) -> str:
     """
     items = [f"{s['name']} [{s['keybind']}]" for s in schedule_status or []]
     return f"Active Buffs: [{', '.join(items)}]"
+
+
+def format_toggle(label: str, enabled: bool, key1: str, key2: str) -> str:
+    """Returns a human-readable on/off status line for a toggle state."""
+    state = "ON" if enabled else "OFF"
+    return f"{label}: [{state}] (Toggle: {key1}+{key2})"
+
+
+def format_last_actions(last_actions: Optional[List[Dict[str, Any]]]) -> str:
+    """Formats the last few keyboard actions in the shared state."""
+    items: List[str] = []
+    for entry in (last_actions or [])[-3:]:
+        key = str(entry.get("key", "?"))
+        timestamp = entry.get("time")
+        if isinstance(timestamp, (int, float)):
+            stamp = time.strftime("%H:%M:%S", time.localtime(timestamp))
+        else:
+            stamp = "--:--:--"
+        items.append(f"{stamp} - Pressed '{key}'")
+    return "Recent Actions: " + (" | ".join(items) if items else "None")
+
+
+def format_buff_countdowns(schedule_status: Optional[List[Dict[str, Any]]]) -> str:
+    """Formats the active buff countdowns relative to the current time."""
+    if not schedule_status:
+        return "Buff countdowns: None"
+    now = time.perf_counter()
+    lines = []
+    for item in schedule_status:
+        remaining = max(0.0, float(item.get("next_due", 0.0)) - now)
+        lines.append(f"{item.get('name', 'Buff')} in {remaining:.1f}s")
+    return "Buff countdowns: " + (" | ".join(lines) if lines else "None")
 
 
 def make_click_through(root: tk.Tk) -> bool:
@@ -120,8 +154,13 @@ class OSDWindow:
         self.vars: Dict[str, tk.StringVar] = {
             name: tk.StringVar(value=text) for name, text in (
                 ("hp", "HP: --%"), ("mp", "MP: --%"),
-                ("looting", "Looting: OFF"),
-                ("buffs", "Active Buffs: []"))}
+                ("autolooting", "Autolooting: OFF (Toggle: ctrl+l)"),
+                ("repot", "Re-poting: OFF (Toggle: ctrl+r)"),
+                ("rebuff", "Re-buffing: OFF (Toggle: ctrl+b)"),
+                ("last_actions", "Recent Actions: None"),
+                ("buffs", "Active Buffs: []"),
+                ("buff_countdowns", "Buff countdowns: None"),
+            )}
         for var in self.vars.values():
             tk.Label(self.root, textvariable=var, bg=BG_COLOR, fg=FG_COLOR,
                      font=FONT, anchor="w", justify=tk.LEFT,
@@ -142,9 +181,37 @@ class OSDWindow:
         snap = self._state.snapshot()
         self.vars["hp"].set(format_percent("HP", snap.get("health_percent")))
         self.vars["mp"].set(format_percent("MP", snap.get("mana_percent")))
-        looting = "ON" if snap.get("looting_active") else "OFF"
-        self.vars["looting"].set(f"Looting: {looting}")
+        self.vars["autolooting"].set(
+            format_toggle(
+                "Autolooting",
+                bool(snap.get("looting_active", False)),
+                config.LOOTING_TOGGLE_1,
+                config.LOOTING_TOGGLE_2,
+            )
+        )
+        self.vars["repot"].set(
+            format_toggle(
+                "Re-poting",
+                bool(snap.get("repot_active", False)),
+                config.REPOT_TOGGLE_1,
+                config.REPOT_TOGGLE_2,
+            )
+        )
+        self.vars["rebuff"].set(
+            format_toggle(
+                "Re-buffing",
+                bool(snap.get("rebuff_active", False)),
+                config.REBUFF_TOGGLE_1,
+                config.REBUFF_TOGGLE_2,
+            )
+        )
+        self.vars["last_actions"].set(
+            format_last_actions(snap.get("last_actions"))
+        )
         self.vars["buffs"].set(format_buffs(snap.get("schedule_status")))
+        self.vars["buff_countdowns"].set(
+            format_buff_countdowns(snap.get("schedule_status"))
+        )
         self._after_id = self.root.after(REFRESH_MS, self.refresh)
 
     def close(self) -> None:

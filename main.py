@@ -161,13 +161,10 @@ class Runner:
 
 
 def main() -> None:
-    """Runs headless, or launches the GUI (``--gui``) or overlay (``--osd``)."""
+    """Runs the GUI by default, or launches the overlay/headless mode."""
     logger.info("MushroomHelper main() invoked")
-    if "--gui" in sys.argv[1:]:
-        from gui import launch
-        launch()
-        return
-    if "--osd" in sys.argv[1:]:
+    args = sys.argv[1:]
+    if "--osd" in args:
         from osd import launch_osd
         runner = Runner()
         runner.start()
@@ -178,6 +175,10 @@ def main() -> None:
             print("Shutting down...")
         finally:
             runner.stop()
+        return
+    if "--gui" in args or not args:
+        from gui import launch
+        launch()
         return
     runner = Runner()
     runner.start()
