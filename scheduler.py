@@ -27,6 +27,9 @@ class Scheduler:
         self.schedules: List[BuffSchedule] = []
         self.last_triggered_time: Dict[str, float] = {}
         self.load()
+        # ADD THESE TWO LINES:
+        self._prev_repot_active: bool = False
+        self._prev_rebuff_active: bool = False
 
     def load(self) -> None:
         """(Re)loads schedules from disk, keeping timestamps of known buffs."""
@@ -81,15 +84,35 @@ class Scheduler:
         """
         self.last_triggered_time[schedule.name] = current_time
 
-    def poll(self, current_time: float | None = None) -> List[str]:
+    def poll(self, current_time: float | None = None, 
+             repot_active: bool = True, rebuff_active: bool = True) -> List[str]:
         """Collects due keybinds and marks them as triggered.
 
         Args:
             current_time: Optional ``perf_counter`` value (defaults to now).
+            repot_active: Current state of the repot toggle.
+            rebuff_active: Current state of the rebuff toggle.
 
         Returns:
             Keybinds to forward to the action thread.
         """
+        # Detect if a toggle was just turned ON
+        just_turned_on = (repot_active and not self._prev_repot_active) or \
+                         (rebuff_active and not self._prev_rebuff_active)
+        
+        if just_turned_on:
+            logger.info("Automation toggle turned ON: Resetting buff timers for immediate trigger.")
+            self.last_triggered_time.clear()
+            
+        # Update tracked states
+        self._prev_repot_active = repot_active
+        self._prev_rebuff_active = rebuff_active
+
+        # If all toggles are OFF, clear timers and suppress everything
+        if not repot_active and not rebuff_active:
+            self.last_triggered_time.clear()
+            return []
+
         now = time.perf_counter() if current_time is None else current_time
         due = self.due_schedules(now)
         for schedule in due:

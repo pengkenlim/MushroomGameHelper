@@ -113,9 +113,15 @@ class Runner:
             action.run_cycle(state)
 
         def scheduler_step() -> None:
-            # Never presses keys: only queues them for the action thread.
-            for keybind in scheduler.poll():
+            # Read current toggle states
+            snapshot = state.snapshot()
+            repot_active = bool(snapshot.get("repot_active", False))
+            rebuff_active = bool(snapshot.get("rebuff_active", False))
+            
+            # Pass toggle states to the scheduler
+            for keybind in scheduler.poll(repot_active=repot_active, rebuff_active=rebuff_active):
                 state.append_buff_press(keybind)
+            
             state.set("schedule_status", scheduler.status())
 
         self._threads = [
