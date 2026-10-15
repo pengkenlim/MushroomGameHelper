@@ -23,6 +23,9 @@ class SharedState:
         self._data: Dict[str, Any] = dict(initial or {})
         self._data.setdefault(PENDING_BUFF_PRESSES, [])
         self._data.setdefault(LOOTING_ACTIVE, False)
+        self._data.setdefault("repot_active", False)
+        self._data.setdefault("rebuff_active", False)
+        self._data.setdefault("last_actions", [])
 
     def get(self, key: str, default: Any = None) -> Any:
         """Returns the value for ``key`` or ``default`` if absent.

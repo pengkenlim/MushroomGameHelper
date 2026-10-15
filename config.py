@@ -83,6 +83,14 @@ class Config:
         )
     )
     looting: LootingConfig = field(default_factory=LootingConfig)
+    repot_toggle_1: str = "ctrl"
+    repot_toggle_2: str = "r"
+    rebuff_toggle_1: str = "ctrl"
+    rebuff_toggle_2: str = "b"
+    looting_toggle_1: str = "ctrl"
+    looting_toggle_2: str = "l"
+    looting_keybind: str = ""
+    looting_retrigger_interval: float = 5.0
 
 
 @dataclass
@@ -236,6 +244,16 @@ def load_config(path: Path = CALIBRATION_PATH) -> Config:
             health=_bar_from_dict(data.get("health", {}), default.health),
             mana=_bar_from_dict(data.get("mana", {}), default.mana),
             looting=_safe_looting(data.get("looting"), default.looting),
+            repot_toggle_1=str(data.get("repot_toggle_1", default.repot_toggle_1)),
+            repot_toggle_2=str(data.get("repot_toggle_2", default.repot_toggle_2)),
+            rebuff_toggle_1=str(data.get("rebuff_toggle_1", default.rebuff_toggle_1)),
+            rebuff_toggle_2=str(data.get("rebuff_toggle_2", default.rebuff_toggle_2)),
+            looting_toggle_1=str(data.get("looting_toggle_1", default.looting_toggle_1)),
+            looting_toggle_2=str(data.get("looting_toggle_2", default.looting_toggle_2)),
+            looting_keybind=str(data.get("looting_keybind", default.looting_keybind)),
+            looting_retrigger_interval=float(
+                data.get("looting_retrigger_interval",
+                         default.looting_retrigger_interval)),
         )
     except (ValueError, TypeError, AttributeError, OSError, OverflowError):
         return default
@@ -330,12 +348,22 @@ MANA: BarConfig = _loaded.mana
 # Looting hold-and-retrigger.
 LOOTING: LootingConfig = _loaded.looting
 
+# Toggle hotkeys.
+REPOT_TOGGLE_1: str = _loaded.repot_toggle_1
+REPOT_TOGGLE_2: str = _loaded.repot_toggle_2
+REBUFF_TOGGLE_1: str = _loaded.rebuff_toggle_1
+REBUFF_TOGGLE_2: str = _loaded.rebuff_toggle_2
+LOOTING_TOGGLE_1: str = _loaded.looting_toggle_1
+LOOTING_TOGGLE_2: str = _loaded.looting_toggle_2
+LOOTING_KEYBIND: str = _loaded.looting_keybind
+LOOTING_RETRIGGER_INTERVAL: float = _loaded.looting_retrigger_interval
+
 # Other keybinds (pynput key names or single characters).
 KEYBINDS: Dict[str, str] = {
-    "left": "left",
-    "right": "right",
-    "jump": "space",
-    "attack": "z",
+"left": "left",
+"right": "right",
+"jump": "space",
+"attack": "z",
 }
 
 # Scheduler loop interval (seconds): 5 Hz.
@@ -347,14 +375,6 @@ BUFF_INPUT_COOLDOWN: float = 0.15
 # How long (seconds) a tap-style key is held.
 DEFAULT_PRESS_DURATION: float = 0.05
 
-# --- Looting: hold a key down, re-triggering to defeat engine ignore-timers
-# Keybind to hold. Empty string disables the feature entirely.
-LOOTING_KEYBIND: str = ""
-# Seconds the key stays held before it is released and re-pressed.
-LOOTING_RETRIGGER_INTERVAL: float = 5.0
-# Both keys must be held simultaneously to toggle looting on/off.
-LOOTING_TOGGLE_KEY_1: str = "ctrl"
-LOOTING_TOGGLE_KEY_2: str = "l"
 # Gap (seconds) between the release and the re-press, so the game engine
 # registers two distinct key events.
 LOOTING_RETRIGGER_GAP: float = 0.05
@@ -373,7 +393,20 @@ def current_config() -> Config:
         match_threshold=MATCH_THRESHOLD,
         health=HEALTH,
         mana=MANA,
-        looting=LOOTING,
+        looting=LootingConfig(
+            keybind=LOOTING_KEYBIND,
+            retrigger_interval=LOOTING_RETRIGGER_INTERVAL,
+            toggle_key_1=LOOTING_TOGGLE_1,
+            toggle_key_2=LOOTING_TOGGLE_2,
+        ),
+        repot_toggle_1=REPOT_TOGGLE_1,
+        repot_toggle_2=REPOT_TOGGLE_2,
+        rebuff_toggle_1=REBUFF_TOGGLE_1,
+        rebuff_toggle_2=REBUFF_TOGGLE_2,
+        looting_toggle_1=LOOTING_TOGGLE_1,
+        looting_toggle_2=LOOTING_TOGGLE_2,
+        looting_keybind=LOOTING_KEYBIND,
+        looting_retrigger_interval=LOOTING_RETRIGGER_INTERVAL,
     )
 
 

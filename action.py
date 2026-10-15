@@ -56,78 +56,83 @@ def normalize_key(key: Union[Key, KeyCode, None]) -> Optional[str]:
 
 
 class KeyComboListener:
-    """Toggles looting when a two-key chord is pressed simultaneously.
-
-    The listener only *observes* the keyboard and flips
-    ``looting_active`` in the :class:`SharedState`; it never presses keys.
-    ``Action.manage_looting`` is solely responsible for physical key holds.
-
-    Chord detection: every key press adds its normalized name to a set of
-    currently pressed keys and every release removes it. As soon as both
-    ``toggle_key_1`` and ``toggle_key_2`` are in the set at the same time the
-    callback fires and the set is cleared, so key auto-repeat or a slow
-    release cannot toggle repeatedly; the chord must be released and pressed
-    again to toggle once more.
-
-    Thread safety: ``pynput`` invokes the handlers on its own thread. The
-    pressed-key set and the read-modify-write of the toggle are guarded by
-    locks, and the state itself is a lock-protected :class:`SharedState`.
-    """
+    """Toggles looting, repotting and rebuffing via two-key chords."""
 
     def __init__(
         self,
         state: SharedState,
-        key1: Optional[str] = None,
-        key2: Optional[str] = None,
-        callback: Optional[Callable[[], None]] = None,
+        looting_key1: Optional[str] = None,
+        looting_key2: Optional[str] = None,
+        repot_key1: Optional[str] = None,
+        repot_key2: Optional[str] = None,
+        rebuff_key1: Optional[str] = None,
+        rebuff_key2: Optional[str] = None,
+        callback: Optional[Callable[[str], None]] = None,
     ) -> None:
-        """Creates the listener (not started until :meth:`start`).
-
-        Args:
-            state: Shared state whose ``looting_active`` flag is toggled.
-            key1: First chord key; defaults to ``config.LOOTING.toggle_key_1``.
-            key2: Second chord key; defaults to ``config.LOOTING.toggle_key_2``.
-            callback: Called when the chord is detected; defaults to
-                :meth:`toggle_looting`.
-        """
+        """Creates the listener (not started until :meth:`start`)."""
         self._state: SharedState = state
-        self._key1: str = normalize_key_name(
-            (key1 or config.LOOTING_TOGGLE_KEY_1).strip().lower())
-        self._key2: str = normalize_key_name(
-            (key2 or config.LOOTING_TOGGLE_KEY_2).strip().lower())
-        self._callback: Callable[[], None] = callback or self.toggle_looting
+        self._looting_key1: str = normalize_key_name(
+            (looting_key1 or config.LOOTING_TOGGLE_1).strip().lower())
+        self._looting_key2: str = normalize_key_name(
+            (looting_key2 or config.LOOTING_TOGGLE_2).strip().lower())
+        self._repot_key1: str = normalize_key_name(
+            (repot_key1 or config.REPOT_TOGGLE_1).strip().lower())
+        self._repot_key2: str = normalize_key_name(
+            (repot_key2 or config.REPOT_TOGGLE_2).strip().lower())
+        self._rebuff_key1: str = normalize_key_name(
+            (rebuff_key1 or config.REBUFF_TOGGLE_1).strip().lower())
+        self._rebuff_key2: str = normalize_key_name(
+            (rebuff_key2 or config.REBUFF_TOGGLE_2).strip().lower())
+        self._callback: Callable[[str], None] = callback or self._toggle_state
         self._pressed: Set[str] = set()
         self._pressed_lock: threading.Lock = threading.Lock()
         self._toggle_lock: threading.Lock = threading.Lock()
         self._listener: Optional[Listener] = None
 
+    def _toggle_state(self, flag_name: str) -> None:
+        """Atomically flips a named boolean in the shared state."""
+        with self._toggle_lock:
+            new_state = self._state.toggle(flag_name)
+            logger.info(f"{flag_name} toggled: {flag_name}={new_state}")
+
+    def _on_press(self, key: Union[Key, KeyCode, None]) -> None:
+        """Backward-compatible alias for the chord-detection callback."""
+        self.on_press(key)
+
     def toggle_looting(self) -> None:
         """Atomically flips ``looting_active`` in the shared state."""
-        with self._toggle_lock:
-            new_state = self._state.toggle("looting_active")
-            logger.info(f"Looting toggled: looting_active={new_state}")
+        self._toggle_state("looting_active")
+
+    def toggle_repot(self) -> None:
+        """Atomically flips ``repot_active`` in the shared state."""
+        self._toggle_state("repot_active")
+
+    def toggle_rebuff(self) -> None:
+        """Atomically flips ``rebuff_active`` in the shared state."""
+        self._toggle_state("rebuff_active")
 
     def on_press(self, key: Union[Key, KeyCode, None]) -> None:
-        """Records a key press and fires the callback on a full chord.
-
-        Args:
-            key: Key reported by ``pynput``.
-        """
+        """Records a key press and fires the callback on a matching chord."""
         name = normalize_key_name(normalize_key(key) or "")
         if not name:
             return
+        fire: Optional[str] = None
         with self._pressed_lock:
             self._pressed.add(name)
-            if self._key1 in self._pressed and self._key2 in self._pressed:
+            if {self._looting_key1, self._looting_key2}.issubset(self._pressed):
                 self._pressed.clear()
-                fire = True
-            else:
-                fire = False
-        if fire:
+                fire = "looting_active"
+            elif {self._repot_key1, self._repot_key2}.issubset(self._pressed):
+                self._pressed.clear()
+                fire = "repot_active"
+            elif {self._rebuff_key1, self._rebuff_key2}.issubset(self._pressed):
+                self._pressed.clear()
+                fire = "rebuff_active"
+        if fire is not None:
             try:
-                self._callback()
+                self._callback(fire)
             except Exception as exc:  # an exception would kill the listener
-                logger.error(f"Looting toggle callback failed: {exc}",
+                logger.error(f"Toggle callback failed for {fire}: {exc}",
                              exc_info=True)
 
     def on_release(self, key: Union[Key, KeyCode, None]) -> None:
@@ -165,7 +170,7 @@ class KeyComboListener:
 class Action:
     """Simulates key presses and tracks held keys."""
 
-    def __init__(self) -> None:
+    def __init__(self, state: SharedState | None = None) -> None:
         """Creates the keyboard controller."""
         self._keyboard: Controller = Controller()
         self._lock: threading.Lock = threading.Lock()
@@ -174,6 +179,7 @@ class Action:
         self._last_buff_input: float | None = None
         self._loot_retrigger_time: float = 0.0
         self._loot_last_hold: Optional[float] = None
+        self._state: SharedState = state or SharedState()
 
     @staticmethod
     def _resolve(name: str) -> KeyType:
@@ -203,6 +209,10 @@ class Action:
             time.sleep(duration)
         finally:
             self._keyboard.release(key)
+        with self._lock:
+            last_actions = list(self._state.get("last_actions", []))
+            last_actions.append({"key": name, "time": time.time()})
+            self._state.set("last_actions", last_actions[-3:])
 
     def hold(self, name: str) -> None:
         """Starts holding a key (no-op if already held).
@@ -290,6 +300,10 @@ class Action:
         if resource:
             logger.info(f"Triggered {key} due to low {resource}")
         self.press_async(key)
+        with self._lock:
+            last_actions = list(self._state.get("last_actions", []))
+            last_actions.append({"key": key, "time": time.time()})
+            self._state.set("last_actions", last_actions[-3:])
         return True
 
     def decide(self, snapshot: Dict[str, object]) -> None:
