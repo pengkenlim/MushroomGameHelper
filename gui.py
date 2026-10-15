@@ -530,12 +530,11 @@ class App:
         return (f"Looting: Inactive (Press {config.LOOTING.toggle_key_1}"
                 f"+{config.LOOTING.toggle_key_2} to toggle)")
 
-    def show_exit_popup(self) -> None:
+    def show_exit_popup(self) -> tk.Toplevel:
         """Shows a thank-you popup with a link to the GitHub repository."""
         popup = tk.Toplevel(self.root)
         popup.title("Thanks")
         popup.transient(self.root)
-        popup.resizable(False, False)
 
         ttk.Label(
             popup,
@@ -555,10 +554,12 @@ class App:
             ),
         ).pack(pady=(0, 8))
 
-        ttk.Button(popup, text="Close", command=popup.destroy).pack(pady=(0, 16))
+        ttk.Button(popup, text="Close", command=popup.destroy).pack(
+            pady=(0, 16)
+        )
         popup.grab_set()
         popup.protocol("WM_DELETE_WINDOW", popup.destroy)
-        self.root.wait_window(popup)
+        return popup
 
     def on_close(self) -> None:
         """Stops threads (releasing keys) and closes the window.
@@ -581,6 +582,7 @@ class App:
             proc.terminate()
 
         popup = self.show_exit_popup()
+        self.root.wait_window(popup)
         try:
             self.runner.stop()
             self.save()
