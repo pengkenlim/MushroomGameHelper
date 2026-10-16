@@ -1100,11 +1100,7 @@ class App:
         return popup
 
     def on_close(self) -> None:
-        """Stops threads (releasing keys) and closes the window.
-
-        The window is destroyed even if stopping or saving fails, and pending
-        ``after`` callbacks and a running calibrator are cancelled first.
-        """
+        """Stops threads (releasing keys) and closes the window."""
         self._closing = True
         if self._osd is not None:
             try:

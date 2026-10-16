@@ -453,7 +453,6 @@ class Action:
         """Presses a single scheduled buff key per cycle using non-blocking async."""
         for keybind in keybinds:
             if keybind == config.LOOTING_KEYBIND.strip() and config.LOOTING_KEYBIND:
-                logger.warning(f"Skipping buff key '{keybind}': looting hold key.")
                 continue
             now = time.perf_counter()
             if self._last_buff_input is not None:
@@ -463,7 +462,6 @@ class Action:
                         self._state.append_buff_press(kb)
                     return
             self._last_buff_input = now
-            logger.info(f"Pressing buff: {keybind}")
             self.press_async(keybind)
             remaining = keybinds[keybinds.index(keybind) + 1:]
             for kb in remaining:
