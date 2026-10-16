@@ -450,58 +450,42 @@ class Action:
         return True
 
     def execute_buff_presses(self, keybinds: List[str]) -> None:
-        """Presses scheduled buff keys, enforcing resolution limit.
+        """Presses a single scheduled buff key per cycle using non-blocking async.
 
-        Buffs are pressed one at a time. If a press would violate the
-        resolution limit, execution stops and remaining buffs stay in the
-        queue for the next cycle.
+        If multiple buffs are queued, only the first is processed this cycle.
+        The rest are pushed back into the shared state to be processed on
+        subsequent 100ms ticks, preventing the action thread from blocking.
 
         Args:
             keybinds: Keys to press, in order.
         """
-        for index, keybind in enumerate(keybinds):
+        for keybind in keybinds:
             if keybind == config.LOOTING_KEYBIND.strip() and config.LOOTING_KEYBIND:
-                logger.warning(
-                    f"Skipping buff key '{keybind}': it is the looting hold key.")
+                logger.warning(f"Skipping buff key '{keybind}': looting hold key.")
                 continue
-            if not self._can_press(is_buff=True):
-                remaining = keybinds[index:]
-                for remaining_kb in remaining:
-                    self._state.append_buff_press(remaining_kb)
-                logger.debug(
-                    f"Deferring {len(remaining)} buff(s) due to lockout/resolution limit.")
-                return
 
+            # Only process the first valid buff this cycle
             now = time.perf_counter()
-            last_input = self._state.get("last_input_timestamp", 0.0)
-            if now - last_input < config.GLOBAL_RESOLUTION_LIMIT:
-                remaining = keybinds[index:]
-                logger.debug(
-                    f"Deferring {len(remaining)} buff(s): resolution limit active")
-                for kb in remaining:
-                    self._state.append_buff_press(kb)
-                return
-
             if self._last_buff_input is not None:
-                wait = (config.BUFF_INPUT_COOLDOWN
-                        - (time.perf_counter() - self._last_buff_input))
+                wait = config.BUFF_INPUT_COOLDOWN - (now - self._last_buff_input)
                 if wait > 0:
-                    time.sleep(wait)
+                    # Not ready yet, push all remaining back to queue and exit
+                    for kb in keybinds[keybinds.index(keybind):]:
+                        self._state.append_buff_press(kb)
+                    return
 
-            try:
-                self.press(keybind)
-                self._record_press(is_buff=True)
-                self._last_buff_input = time.perf_counter()
-                self._state.set("last_input_timestamp", time.perf_counter())
-            except Exception as exc:
-                logger.error(f"Failed to press buff '{keybind}': {exc}")
+            self._last_buff_input = now
+            logger.info(f"Pressing buff: {keybind}")
+            self.press_async(keybind)
+
+            # Push the rest back to the queue for the next tick
+            remaining = keybinds[keybinds.index(keybind) + 1:]
+            for kb in remaining:
+                self._state.append_buff_press(kb)
+            return
 
     def manage_looting(self, looting_active: bool, user_is_acting: bool) -> None:
         """Holds the looting key if active and no user conflicts exist.
-
-        If the user is pressing a non-movement action key, the loot key is
-        released to prevent game engine input buffer overflow. Otherwise,
-        it is held down continuously.
 
         Args:
             looting_active: Current toggle state from SharedState.
@@ -664,17 +648,7 @@ class Action:
                 self._enqueue(PRIORITY_MANA, config.MANA.keybind, "mana")
 
     def run_cycle(self, state: SharedState) -> None:
-        """Runs one action cycle with context-aware looting.
-
-        Evaluates physical key conflicts and bot intentions before executing
-        actions. Preemptively releases the looting key if a conflict is
-        detected to ensure higher-priority actions (user attacks, bot buffs/heals)
-        are not dropped by the game engine's input buffer.
-
-        Args:
-            state: Shared state holding vision output, toggle flags and
-                pending buff presses.
-        """
+        """Runs one action cycle with context-aware looting."""
         pending = state.drain_buff_presses()
         snapshot = state.snapshot()
 
@@ -682,11 +656,11 @@ class Action:
         user_is_acting = int(snapshot.get("physical_keys_held", 0)) > 0
         bot_wants_to_act = bool(pending) or snapshot.get("health_low") or snapshot.get("mana_low")
 
-        # Pre-emptively release loot if there's a conflict to free the input buffer
+        # Pre-emptively release loot if there's a conflict
         if looting_active and (user_is_acting or bot_wants_to_act):
             self.release(config.LOOTING_KEYBIND.strip())
 
-        # Execute bot actions (buffs and reactive heals/mana)
+        # Execute bot actions (only processes one buff per tick now)
         if pending:
             self.execute_buff_presses(pending)
         self.decide(snapshot)
