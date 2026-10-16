@@ -218,6 +218,7 @@ class App:
         self._osd_root = None
         self.runner: Runner = runner or Runner()
         self.tooltips: List[ToolTip] = []
+        self._bold_font = tkfont.Font(family="Segoe UI", size=10, weight="bold")
         root.title("MushroomGameHelper")
         root.protocol("WM_DELETE_WINDOW", self.on_close)
         root.columnconfigure(0, weight=1)
@@ -258,34 +259,29 @@ class App:
         self.refresh()
 
     def _configure_styles(self) -> None:
-        """Applies the ``clam``/``alt`` theme and the Start/Stop styles.
-
-        Both buttons always get bold text. Colours (green Start, red Stop,
-        grey when disabled) are only added when the active theme honours
-        button background colours. Because Stop is only enabled while the
-        bot is running, it is red exactly then.
-        """
+        """Applies a Mushroom/Forest-inspired earthy theme."""
         self.style: ttk.Style = ttk.Style(self.root)
-        available = self.style.theme_names()
-        for theme in self.PREFERRED_THEMES:
-            if theme in available:
-                self.style.theme_use(theme)
-                break
-        self._bold_font: tkfont.Font = tkfont.nametofont(
-            "TkDefaultFont", root=self.root).copy()
-        self._bold_font.configure(weight="bold")
-        colorable = self.style.theme_use() in self.COLORABLE_THEMES
-        for name, (normal, hover, pressed) in self.BUTTON_COLORS.items():
-            self.style.configure(name, font=self._bold_font)
-            if not colorable:
-                continue
-            self.style.configure(name, foreground="#ffffff",
-                                 background=normal)
-            self.style.map(
-                name,
-                background=[("disabled", self.BUTTON_DISABLED_BG),
-                            ("pressed", pressed), ("active", hover)],
-                foreground=[("disabled", self.BUTTON_DISABLED_FG)])
+        if "clam" in self.style.theme_names():
+            self.style.theme_use("clam")
+        SPORE_CREAM = "#FDFBF7"
+        MOSS_GREEN = "#EBF5EB"
+        BARK_BROWN = "#4A3F35"
+        FOREST_GREEN = "#27AE60"
+        CAP_RED = "#C0392B"
+        ACCENT_ORANGE = "#D35400"
+        self.style.configure("TFrame", background=SPORE_CREAM)
+        self.style.configure("TNotebook", background=SPORE_CREAM, borderwidth=0)
+        self.style.configure("TNotebook.Tab", background=MOSS_GREEN, foreground=BARK_BROWN, padding=[10, 5], font=("Segoe UI", 10, "bold"))
+        self.style.map("TNotebook.Tab", background=[("selected", SPORE_CREAM)])
+        self.style.configure("TLabel", background=SPORE_CREAM, foreground=BARK_BROWN, font=("Segoe UI", 9))
+        self.style.configure("TLabelFrame", background=MOSS_GREEN, foreground=BARK_BROWN, font=("Segoe UI", 9, "bold"), borderwidth=2)
+        self.style.configure("TLabelFrame.Label", background=MOSS_GREEN, foreground=ACCENT_ORANGE, font=("Segoe UI", 10, "bold"))
+        self.style.configure("TCheckbutton", background=MOSS_GREEN, foreground=BARK_BROWN)
+        self.style.configure("TButton", background=SPORE_CREAM, foreground=BARK_BROWN, font=("Segoe UI", 9))
+        self.style.configure("Start.TButton", background=FOREST_GREEN, foreground="white", font=("Segoe UI", 11, "bold"))
+        self.style.map("Start.TButton", background=[("active", "#2ECC71"), ("disabled", "#BDC3C7")])
+        self.style.configure("Stop.TButton", background=CAP_RED, foreground="white", font=("Segoe UI", 11, "bold"))
+        self.style.map("Stop.TButton", background=[("active", "#E74C3C"), ("disabled", "#BDC3C7")])
 
     def _add_tip(self, key: str, *widgets: tk.Misc) -> None:
         """Attaches the tip registered under ``key`` to each widget.
@@ -996,7 +992,7 @@ class App:
             Green while running, red for errors and blocked states, and grey
             for everything else (idle, stopped, ready).
         """
-        if text.startswith("Running"):
+        if text.startswith(("Running", "Foraging")):
             return cls.STATUS_COLORS["running"]
         if text.startswith(cls.ERROR_PREFIXES):
             return cls.STATUS_COLORS["error"]
