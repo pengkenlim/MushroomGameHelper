@@ -264,7 +264,6 @@ class Action:
         # Dispatcher state
         self._queue: List[Tuple[int, str, str]] = []   # (priority, key, reason)
         self._last_automated_input: float = 0.0
-        self._last_loot_tap: float = 0.0
         self._last_buff_input: Optional[float] = None
 
     @staticmethod
@@ -497,30 +496,29 @@ class Action:
             except Exception as exc:
                 logger.error(f"Failed to press buff '{keybind}': {exc}")
 
-    def manage_looting(self, keybind: str, hold_duration: float) -> None:
-        """Holds and retriggers the looting key while respecting the resolution limit.
+    def manage_looting(self, looting_active: bool, user_is_acting: bool) -> None:
+        """Holds the looting key if active and no user conflicts exist.
+
+        If the user is pressing a non-movement action key, the loot key is
+        released to prevent game engine input buffer overflow. Otherwise,
+        it is held down continuously.
 
         Args:
-            keybind: Key held while looting is active.
-            hold_duration: Current hold duration.
+            looting_active: Current toggle state from SharedState.
+            user_is_acting: True if the user is holding a non-movement key.
         """
+        keybind = config.LOOTING_KEYBIND.strip()
         if not keybind:
             return
-        now = time.perf_counter()
-        last_input = self._state.get("last_input_timestamp", 0.0)
-        if now - last_input < config.RESOLUTION_LIMIT:
-            logger.debug("Deferring loot retrigger: resolution limit active")
+
+        if not looting_active:
+            self.release(keybind)
             return
-        if hold_duration <= 0:
-            return
-        if not self._can_press(is_buff=False):
-            return
-        try:
+
+        if user_is_acting:
+            self.release(keybind)
+        else:
             self.hold(keybind)
-            self._record_press(is_buff=False)
-            self._state.set("last_input_timestamp", time.perf_counter())
-        except Exception as exc:
-            logger.error(f"Failed to hold loot key '{keybind}': {exc}")
 
     def _enqueue(self, priority: int, key: str, reason: str) -> None:
         """Adds a press request to the dispatcher queue.
@@ -666,12 +664,32 @@ class Action:
                 self._enqueue(PRIORITY_MANA, config.MANA.keybind, "mana")
 
     def run_cycle(self, state: SharedState) -> None:
-        """Runs one action cycle: collect requests, then fire at most one.
+        """Runs one action cycle with context-aware looting.
+
+        Evaluates physical key conflicts and bot intentions before executing
+        actions. Preemptively releases the looting key if a conflict is
+        detected to ensure higher-priority actions (user attacks, bot buffs/heals)
+        are not dropped by the game engine's input buffer.
 
         Args:
             state: Shared state holding vision output, toggle flags and
                 pending buff presses.
         """
+        pending = state.drain_buff_presses()
         snapshot = state.snapshot()
-        self._collect(state, snapshot)
-        self._dispatch(snapshot)
+
+        looting_active = bool(snapshot.get("looting_active", False))
+        user_is_acting = int(snapshot.get("physical_keys_held", 0)) > 0
+        bot_wants_to_act = bool(pending) or snapshot.get("health_low") or snapshot.get("mana_low")
+
+        # Pre-emptively release loot if there's a conflict to free the input buffer
+        if looting_active and (user_is_acting or bot_wants_to_act):
+            self.release(config.LOOTING_KEYBIND.strip())
+
+        # Execute bot actions (buffs and reactive heals/mana)
+        if pending:
+            self.execute_buff_presses(pending)
+        self.decide(snapshot)
+
+        # Re-evaluate and hold loot if the coast is clear
+        self.manage_looting(looting_active, user_is_acting)
