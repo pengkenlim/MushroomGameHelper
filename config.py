@@ -390,14 +390,13 @@ KEYBINDS: Dict[str, str] = {
 "left": "left",
 "right": "right",
 "jump": "space",
-"attack": "z",
 }
 
-# Scheduler loop interval (seconds): 5 Hz.
-SCHEDULER_INTERVAL: float = 0.20
+# Scheduler loop interval (seconds): 20 Hz.
+SCHEDULER_INTERVAL: float = 0.05
 
 # Minimum seconds between two automated buff key presses (global input gap).
-BUFF_INPUT_COOLDOWN: float = 0.15
+BUFF_INPUT_COOLDOWN: float = 0.8
 
 # How long (seconds) a tap-style key is held.
 DEFAULT_PRESS_DURATION: float = 0.05

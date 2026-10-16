@@ -896,10 +896,14 @@ class App:
                 if attr == "MATCH_THRESHOLD":
                     if not 0.0 <= value <= 1.0:
                         raise ValueError("threshold must be 0-1")
-                else:
-                    if value < 0 or (attr.endswith(("WIDTH", "HEIGHT"))
-                                     and value < 1):
+                elif attr.endswith(("WIDTH", "HEIGHT")):
+                    if value < 1:
                         raise ValueError(f"invalid {attr}")
+                    value = int(value)
+                elif attr.endswith(("TOP", "LEFT")):
+                    # Clamp negative coordinates to 0 to prevent crashes
+                    value = max(0, int(value))
+                else:
                     value = int(value)
                 parsed[attr] = value
         except ValueError as exc:
@@ -927,7 +931,6 @@ class App:
         config.LOOTING_KEYBIND = self.looting_keybind_var.get().strip()
 
         return True
-
     def start(self) -> None:
         """Applies settings and starts the worker threads.
 

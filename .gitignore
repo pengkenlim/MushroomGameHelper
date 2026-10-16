@@ -220,3 +220,7 @@ __marimo__/
 .streamlit/secrets.toml
 calibration.json
 schedules.json
+
+*log*
+bot_session.log.1
+bot_session.log.1
