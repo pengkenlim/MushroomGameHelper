@@ -768,6 +768,6 @@ PS: consider leaving a star on this repo⭐ It gives me a gauge of general inter
 **Use responsibly and only in games whose terms of service permit automation.**
 
 An excuse to make my life easier in a certain classic mushroom game. *WINK WINK*
-
+ [Back to top](#readme)
 </div>
 
