@@ -259,29 +259,42 @@ class App:
         self.refresh()
 
     def _configure_styles(self) -> None:
-        """Applies a Mushroom/Forest-inspired earthy theme."""
+        """Applies a custom theme using semantic color variables."""
         self.style: ttk.Style = ttk.Style(self.root)
+        
         if "clam" in self.style.theme_names():
             self.style.theme_use("clam")
-        SPORE_CREAM = "#FDFBF7"
-        MOSS_GREEN = "#EBF5EB"
-        BARK_BROWN = "#4A3F35"
-        FOREST_GREEN = "#27AE60"
-        CAP_RED = "#C0392B"
-        ACCENT_ORANGE = "#D35400"
-        self.style.configure("TFrame", background=SPORE_CREAM)
-        self.style.configure("TNotebook", background=SPORE_CREAM, borderwidth=0)
-        self.style.configure("TNotebook.Tab", background=MOSS_GREEN, foreground=BARK_BROWN, padding=[10, 5], font=("Segoe UI", 10, "bold"))
-        self.style.map("TNotebook.Tab", background=[("selected", SPORE_CREAM)])
-        self.style.configure("TLabel", background=SPORE_CREAM, foreground=BARK_BROWN, font=("Segoe UI", 9))
-        self.style.configure("TLabelFrame", background=MOSS_GREEN, foreground=BARK_BROWN, font=("Segoe UI", 9, "bold"), borderwidth=2)
-        self.style.configure("TLabelFrame.Label", background=MOSS_GREEN, foreground=ACCENT_ORANGE, font=("Segoe UI", 10, "bold"))
-        self.style.configure("TCheckbutton", background=MOSS_GREEN, foreground=BARK_BROWN)
-        self.style.configure("TButton", background=SPORE_CREAM, foreground=BARK_BROWN, font=("Segoe UI", 9))
-        self.style.configure("Start.TButton", background=FOREST_GREEN, foreground="white", font=("Segoe UI", 11, "bold"))
-        self.style.map("Start.TButton", background=[("active", "#2ECC71"), ("disabled", "#BDC3C7")])
-        self.style.configure("Stop.TButton", background=CAP_RED, foreground="white", font=("Segoe UI", 11, "bold"))
-        self.style.map("Stop.TButton", background=[("active", "#E74C3C"), ("disabled", "#BDC3C7")])
+            
+        # Semantic Color Palette
+        BG_PRIMARY = "#FDFBF7"       # Main window background
+        BG_SECONDARY = "#EBF5EB"     # Group frames, tabs, and containers
+        TEXT_PRIMARY = "#4A3F35"     # Standard body text
+        TEXT_ACCENT = "#D35400"      # Group headers and highlights
+        BTN_SUCCESS_BG = "#27AE60"   # Start/Primary action button
+        BTN_SUCCESS_HOVER = "#2ECC71"# Start button hover state
+        BTN_DANGER_BG = "#C0392B"    # Stop/Destructive action button
+        BTN_DANGER_HOVER = "#E74C3C" # Stop button hover state
+        BTN_DISABLED_BG = "#BDC3C7"  # Disabled button state
+        
+        # Global Backgrounds and Fonts
+        self.style.configure("TFrame", background=BG_PRIMARY)
+        self.style.configure("TNotebook", background=BG_PRIMARY, borderwidth=0)
+        self.style.configure("TNotebook.Tab", background=BG_SECONDARY, foreground=TEXT_PRIMARY, padding=[10, 5], font=("Segoe UI", 10, "bold"))
+        self.style.map("TNotebook.Tab", background=[("selected", BG_PRIMARY)])
+        
+        self.style.configure("TLabel", background=BG_PRIMARY, foreground=TEXT_PRIMARY, font=("Segoe UI", 9))
+        self.style.configure("TLabelFrame", background=BG_SECONDARY, foreground=TEXT_PRIMARY, font=("Segoe UI", 9, "bold"), borderwidth=2)
+        self.style.configure("TLabelFrame.Label", background=BG_SECONDARY, foreground=TEXT_ACCENT, font=("Segoe UI", 10, "bold"))
+        
+        self.style.configure("TCheckbutton", background=BG_SECONDARY, foreground=TEXT_PRIMARY)
+        self.style.configure("TButton", background=BG_PRIMARY, foreground=TEXT_PRIMARY, font=("Segoe UI", 9))
+        
+        # Custom Button Styles
+        self.style.configure("Start.TButton", background=BTN_SUCCESS_BG, foreground="white", font=("Segoe UI", 11, "bold"))
+        self.style.map("Start.TButton", background=[("active", BTN_SUCCESS_HOVER), ("disabled", BTN_DISABLED_BG)])
+        
+        self.style.configure("Stop.TButton", background=BTN_DANGER_BG, foreground="white", font=("Segoe UI", 11, "bold"))
+        self.style.map("Stop.TButton", background=[("active", BTN_DANGER_HOVER), ("disabled", BTN_DISABLED_BG)])
 
     def _add_tip(self, key: str, *widgets: tk.Misc) -> None:
         """Attaches the tip registered under ``key`` to each widget.
