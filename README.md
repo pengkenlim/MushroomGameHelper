@@ -725,24 +725,25 @@ To keep the core architecture intact for my portfolio, I am not currently accept
 <a id="philosophy"></a>
 
 ## 🍄 A Note on the Project’s Origins and Philosophy
+Hello everyone! I would like to dabble in software engineering as a hobby, but am woefully inexperienced. As such, I built this project primarily as a personal learning exercise and a portfolio piece. To tackle complex topics like multi-threaded architecture and computer vision, I’ve been experimenting with using AI as a pair-programming tutor to help scaffold the initial framework. My goal isn't just to ship a tool, but to iteratively refine, debug, and deeply understand every line of code so I can grow from relying on AI assistance to mastering the underlying software engineering principles myself. I’ve always loved classic 2D pixelated side-scrollers (a mushroom game in particular), and I’m sharing this publicly to learn from this amazing community, catch bugs I couldn't find alone, and hopefully help a few people along the way.
 
-Hello everyone! I’m a student studying computer vision and software engineering, and I built this project primarily as a personal learning exercise and a portfolio piece. I’ve always loved classic 2D pixelated side-scrollers, and I wanted to see if I could build a generic, game-agnostic screen-reading utility using Python and OpenCV. I’m sharing it publicly to learn from this amazing community, catch bugs I couldn't find alone, and hopefully help a few people along the way.
-
-As I developed the tool, I wanted to make sure it respected the spirit of the games we love. Here are a few thoughts on why I built it and how I hope it gets used:
+As I developed the tool, I wanted to make sure it respected the spirit of the game(s) we love. Here are a few thoughts on why I built it and how I hope it gets used:
 
 **Preserving the Core Gameplay**
-I have immense respect for game design and the effort required to progress. This tool was never meant to play the game *for* you or allow for AFK farming. The core joy of the game—exploring, hunting, and strategizing—still requires your active attention. If you step away from your keyboard, you'll be sent back to town. My goal was simply to act as a digital assistant for the repetitive micro-management (like watching timers and tapping loot), so players can focus entirely on the adventure.
+I have immense respect for game design and the effort required to progress. This tool was never meant to play the game *for* you or allow for AFK farming. The core joy of the game—exploring, hunting, and strategizing—still requires your active attention. The goal for this tool is simply to act as a digital assistant for the repetitive micro-management (like watching timers and tapping loot), so players can enjoy the games without it being too much a grind.
 
 **A Humble Accessibility Aid**
 During my own long grinding sessions, I noticed my hands getting fatigued and my focus draining from constantly tracking multiple overlapping buff timers and health bars. I realized that this heavy cognitive and motor load can be a genuine barrier to entry, especially for players dealing with repetitive strain, motor challenges, or attention difficulties. I hope this tool can serve as a gentle accessibility bridge, allowing more people to comfortably enjoy the end-game content they love without physical burnout.
 
 **Bridging the Free-to-Play Gap**
-In many classic MMOs, built-in quality-of-life features like auto-looting and auto-buffing are often tied to premium cash-shop pets. As a student and a Free-to-Play player, I couldn't always justify those purchases, but I still wanted to enjoy the game comfortably without my hands hurting. I built this as a free, open-source alternative to help bridge that gap for the F2P community. That said, I deeply respect the developers who keep the servers running, and I always encourage supporting them through cosmetics and other official channels!
+In many classic MMOs, built-in quality-of-life features like auto-looting and auto-buffing are often tied to in-game cash purchases (e.g., premium cash-shop pets in a certain mushroom game). As a money-tight and a Free-to-Play (F2P) player, I couldn't always justify those purchases, but I still wanted to enjoy the game comfortably without my hands hurting. I built this as a free, open-source alternative to help bridge that gap for the F2P community. That said, I deeply respect the developers who keep the servers running, and I always encourage supporting them through cosmetics and other official channels!
 
 **A Generic Technical Framework**
 From a technical standpoint, the code itself contains no references, memory-reading hooks, or IP-specific data for any particular game. It is entirely blind to what you are playing; it simply watches a configurable rectangle of pixels on your monitor and simulates keystrokes based on the colors it sees. 
 
 Thank you for checking out my project. Whether you use it to save your hands, fork it to learn from the code, or just pass by, I appreciate you taking the time to read this. Please use it responsibly, take care of your health, and happy hunting! 🍄
+
+PS: consider leaving a star on this repo⭐ It gives me a gauge of general interest from the community and keeps me motivated!
 
 ---
 
