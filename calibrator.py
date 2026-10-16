@@ -303,20 +303,41 @@ def run_window(session: CalibrationSession) -> bool:
     """
     cv2.namedWindow(WINDOW, cv2.WINDOW_AUTOSIZE)
     cv2.setMouseCallback(WINDOW, session.on_mouse)
+    
+    # Force the OpenCV window to the foreground on Windows to ensure it captures keyboard input
+    try:
+        import sys
+        if sys.platform == 'win32':
+            import ctypes
+            hwnd = ctypes.windll.user32.FindWindowW(None, WINDOW)
+            if hwnd:
+                ctypes.windll.user32.SetForegroundWindow(hwnd)
+    except Exception:
+        pass
+
     try:
         while not session.finished:
             cv2.imshow(WINDOW, session.render())
-            key = cv2.waitKey(20) & 0xFF
-            if key in (ord("q"), 27):
-                return False
+            key = cv2.waitKey(20)
+            
+            if key != -1:
+                # Handle ASCII, case-insensitivity, and mask properly
+                try:
+                    key_char = chr(key & 0xFF).lower()
+                except ValueError:
+                    key_char = ""
+                
+                if key == 27 or key_char == 'q':  # 27 is ESC
+                    return False
+                if key_char == 'r':
+                    session.redo()
+                    
             if cv2.getWindowProperty(WINDOW, cv2.WND_PROP_VISIBLE) < 1:
                 return False  # window closed via the title-bar button
-            if key == ord("r"):
-                session.redo()
+                
         return True
     finally:
         cv2.destroyAllWindows()
-
 
 def main() -> int:
     """Runs the calibration workflow and saves ``calibration.json``.

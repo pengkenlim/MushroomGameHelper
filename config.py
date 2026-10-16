@@ -339,7 +339,7 @@ GLOBAL_RESOLUTION_LIMIT: float = 0.01
 # After the bot presses a buff key, ALL other automated actions (heals,
 # pots, loots, other buffs) are suppressed for this duration because the
 # game will ignore them.
-BUFF_CAST_LOCKOUT: float = 0.7
+BUFF_CAST_LOCKOUT: float = 0.8
 # Backward-compatible alias used by earlier action timing checks.
 RESOLUTION_LIMIT: float = GLOBAL_RESOLUTION_LIMIT
 # Minimum seconds between ANY two automated key presses. Prevents the game
@@ -353,7 +353,7 @@ ACTION_QUEUE_MAX: int = 500
 # game engine's action input buffer, so they are excluded from the contention count.
 IGNORED_PHYSICAL_KEYS: Set[str] = {"left", "right", "up", "down", "space"}
 # Physical keys the user may hold before low-priority actions are deferred.
-MAX_PHYSICAL_KEYS: int = 2
+MAX_PHYSICAL_KEYS: int = 1
 # When True, heal/mana also defer under physical contention. When False only
 # buff and loot actions defer (survival actions always fire).
 DEFER_CRITICAL_ACTIONS: bool = False
