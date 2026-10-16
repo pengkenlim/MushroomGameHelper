@@ -4,19 +4,17 @@ import sys
 import time
 import tkinter as tk
 from typing import Any, Callable, Dict, List, Optional
+import ctypes
+from ctypes import wintypes
 
-_osd_wndproc_callback = None
-_osd_original_wndproc = None
+# pynput is already in your requirements.txt
+from pynput import mouse
 
 import config
 from state import SharedState
 
 REFRESH_MS: int = 250  # 4 FPS, matching the vision loop
 ALPHA: float = 0.5
-# True: mouse clicks pass through to the game, but Escape will NOT work
-#       on Windows (close with Ctrl+C in the terminal instead).
-# False: the overlay can be focused and closed with Escape, but it will
-#        block mouse clicks over its area.
 CLICK_THROUGH: bool = True
 BG_COLOR: str = "black"
 FG_COLOR: str = "#00ff66"
@@ -25,39 +23,17 @@ POSITION: str = "+10+10"
 
 
 def format_percent(label: str, value: Optional[float]) -> str:
-    """Formats a bar reading.
-
-    Args:
-        label: Prefix such as ``"HP"`` or ``"MP"``.
-        value: Percentage (0-100) or None if vision has not reported yet.
-
-    Returns:
-        E.g. ``"HP: 85%"`` or ``"HP: --%"``.
-    """
     return f"{label}: --%" if value is None else f"{label}: {value:.0f}%"
 
-
 def format_buffs(schedule_status: Optional[List[Dict[str, Any]]]) -> str:
-    """Formats the enabled buff schedules.
-
-    Args:
-        schedule_status: ``schedule_status`` entry of the shared state.
-
-    Returns:
-        ``"Active Buffs: [Name [key], ...]"`` (empty list if none).
-    """
     items = [f"{s['name']} [{s['keybind']}]" for s in schedule_status or []]
     return f"Active Buffs: [{', '.join(items)}]"
 
-
 def format_toggle(label: str, enabled: bool, key1: str, key2: str) -> str:
-    """Returns a human-readable on/off status line for a toggle state."""
     state = "ON" if enabled else "OFF"
     return f"{label}: [{state}] (Toggle: {key1}+{key2})"
 
-
 def format_last_actions(last_actions: Optional[List[Dict[str, Any]]]) -> str:
-    """Formats the last few keyboard actions in the shared state."""
     items: List[str] = []
     for entry in (last_actions or [])[-3:]:
         key = str(entry.get("key", "?"))
@@ -69,9 +45,7 @@ def format_last_actions(last_actions: Optional[List[Dict[str, Any]]]) -> str:
         items.append(f"{stamp} - Pressed '{key}'")
     return "Recent Actions: " + (" | ".join(items) if items else "None")
 
-
 def format_buff_countdowns(schedule_status: Optional[List[Dict[str, Any]]]) -> str:
-    """Formats the active buff countdowns relative to the current time."""
     if not schedule_status:
         return "Buff countdowns: None"
     now = time.perf_counter()
@@ -82,93 +56,30 @@ def format_buff_countdowns(schedule_status: Optional[List[Dict[str, Any]]]) -> s
     return "Buff countdowns: " + (" | ".join(lines) if lines else "None")
 
 
-def make_click_through(root: tk.Tk) -> bool:
-    """Makes the window ignore left clicks but allows right-click dragging (Windows only)."""
-    if not CLICK_THROUGH:
-        return False
+def set_window_transparent(hwnd: int, transparent: bool) -> None:
+    """Toggles WS_EX_TRANSPARENT safely without hooking the message pump."""
     if sys.platform != "win32":
-        return False
+        return
     try:
-        import ctypes
-        from ctypes import wintypes
-        
         user32 = ctypes.windll.user32
-        root.update_idletasks()
-        hwnd = user32.GetParent(root.winfo_id()) or root.winfo_id()
+        GWL_EXSTYLE = -20
+        WS_EX_LAYERED = 0x00080000
+        WS_EX_TRANSPARENT = 0x00000020
         
-        gwl_exstyle = -20
-        style = user32.GetWindowLongW(hwnd, gwl_exstyle)
-        # Layered | NoActivate | ToolWindow (Removed TRANSPARENT so we can intercept)
-        style |= 0x00080000 | 0x08000000 | 0x00000080  
-        user32.SetWindowLongW(hwnd, gwl_exstyle, style)
-        
-        WM_NCHITTEST = 0x0084
-        WM_RBUTTONDOWN = 0x0204
-        WM_NCLBUTTONDOWN = 0x00A1
-        HTTRANSPARENT = -1
-        HTCAPTION = 2
-        VK_LBUTTON = 0x01
-        GWL_WNDPROC = -4
-        
-        WNDPROC = ctypes.WINFUNCTYPE(ctypes.c_long, wintypes.HWND, ctypes.c_uint, wintypes.WPARAM, wintypes.LPARAM)
-        
-        def wndproc(hwnd, msg, wparam, lparam):
-            # Intercept Right Mouse Button to initiate drag
-            if msg == WM_RBUTTONDOWN:
-                user32.ReleaseCapture()
-                user32.SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0)
-                return 0
-                
-            if msg == WM_NCHITTEST:
-                lbutton_state = user32.GetAsyncKeyState(VK_LBUTTON)
-                if lbutton_state & 0x8000:
-                    return HTTRANSPARENT
-                
-                # Let original proc handle hit test (so it receives WM_RBUTTONDOWN)
-                return _osd_original_wndproc(hwnd, msg, wparam, lparam)
-            
-            return _osd_original_wndproc(hwnd, msg, wparam, lparam)
-            
-        global _osd_wndproc_callback, _osd_original_wndproc
-        _osd_wndproc_callback = WNDPROC(wndproc)
-        
-        if hasattr(user32, "SetWindowLongPtrW"):
-            user32.SetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int, wintypes.LPARAM]
-            user32.SetWindowLongPtrW.restype = wintypes.LPARAM
-            user32.GetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int]
-            user32.GetWindowLongPtrW.restype = wintypes.LPARAM
-            raw_proc = user32.GetWindowLongPtrW(hwnd, GWL_WNDPROC)
-            
-            # CRITICAL: Assign the original proc BEFORE installing the hook to prevent race conditions
-            _osd_original_wndproc = ctypes.cast(raw_proc, WNDPROC)
-            user32.SetWindowLongPtrW(hwnd, GWL_WNDPROC, ctypes.cast(_osd_wndproc_callback, wintypes.LPARAM))
+        style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+        if transparent:
+            style |= (WS_EX_LAYERED | WS_EX_TRANSPARENT)
         else:
-            raw_proc = user32.GetWindowLongW(hwnd, GWL_WNDPROC)
-            _osd_original_wndproc = ctypes.cast(raw_proc, WNDPROC)
-            user32.SetWindowLongW(hwnd, GWL_WNDPROC, ctypes.cast(_osd_wndproc_callback, wintypes.LPARAM))
-
-        swp_nomove = 0x0002
-        swp_nosize = 0x0001
-        swp_nozorder = 0x0004
-        swp_noactivate = 0x0010
-        swp_framechanged = 0x0020
-        user32.SetWindowPos(
-            hwnd, 0, 0, 0, 0, 0,
-            swp_nomove | swp_nosize | swp_nozorder
-            | swp_noactivate | swp_framechanged)
-        return True
-    except (OSError, AttributeError) as e:
-        from logger import logger
-        logger.warning(f"Failed to setup OSD click-through/drag: {e}")
-        return False
+            style &= ~WS_EX_TRANSPARENT
+            style |= WS_EX_LAYERED # Keep layered for alpha
+        
+        user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
+    except Exception:
+        pass
 
 
 class OSDWindow:
-    """Borderless, semi-transparent, always-on-top status overlay.
-
-    The overlay is strictly read-only: it only calls ``SharedState.snapshot()``
-    and never modifies the state.
-    """
+    """Borderless, semi-transparent, always-on-top status overlay."""
 
     def __init__(
         self,
@@ -176,13 +87,6 @@ class OSDWindow:
         root: Optional[tk.Tk] = None,
         on_close: Optional[Callable[[], None]] = None,
     ) -> None:
-        """Builds the overlay.
-
-        Args:
-            state: Shared state to display (read-only).
-            root: Optional Tk root (a new one is created by default).
-            on_close: Optional callback invoked when the overlay is closed.
-        """
         self._state: SharedState = state
         self._on_close: Optional[Callable[[], None]] = on_close
         self._after_id: Optional[str] = None
@@ -210,62 +114,87 @@ class OSDWindow:
                      font=FONT, anchor="w", justify=tk.LEFT,
                      padx=8, pady=1).pack(fill=tk.X)
 
-        self.root.bind("<Escape>", lambda _event: self.close())
         self.root.protocol("WM_DELETE_WINDOW", self.close)
-        if make_click_through(self.root):
-            pass  # click-through active; Escape unavailable, use Ctrl+C
-        else:
-            self.root.focus_force()  # lets Escape close the overlay
+        
+        # --- DRAG & CLICK-THROUGH LOGIC ---
+        self.root.update_idletasks()
+        self._hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id()) or self.root.winfo_id()
+        
+        # Start fully transparent (left clicks pass through)
+        if CLICK_THROUGH:
+            set_window_transparent(self._hwnd, True)
+        
+        self._dragging = False
+        self._drag_start_x = 0
+        self._drag_start_y = 0
+        
+        def on_move(x, y):
+            if self._dragging:
+                try:
+                    dx = x - self._drag_start_x
+                    dy = y - self._drag_start_y
+                    curr_x = self.root.winfo_x()
+                    curr_y = self.root.winfo_y()
+                    self.root.geometry(f"+{curr_x + dx}+{curr_y + dy}")
+                    self._drag_start_x = x
+                    self._drag_start_y = y
+                except tk.TclError:
+                    pass
+
+        def on_click(x, y, button, pressed):
+            if button == mouse.Button.right:
+                if pressed:
+                    # Right button pressed: Disable transparency to catch the drag
+                    if CLICK_THROUGH:
+                        set_window_transparent(self._hwnd, False)
+                    self.root.attributes("-topmost", True)
+                    self._dragging = True
+                    self._drag_start_x = x
+                    self._drag_start_y = y
+                else:
+                    # Right button released: Re-enable transparency
+                    self._dragging = False
+                    if CLICK_THROUGH:
+                        set_window_transparent(self._hwnd, True)
+
+        self._mouse_listener = mouse.Listener(on_move=on_move, on_click=on_click)
+        self._mouse_listener.start()
+        # -------------------------------
+
         self.refresh()
 
     def refresh(self) -> None:
         """Re-reads the shared state, updates the labels and reschedules."""
-        if self._closed:
-            return
-        snap = self._state.snapshot()
-        self.vars["hp"].set(format_percent("HP", snap.get("health_percent")))
-        self.vars["mp"].set(format_percent("MP", snap.get("mana_percent")))
-        self.vars["inputs"].set(
-            f"Your keys held: {snap.get('physical_keys_held', 0)}"
-        )
-        self.vars["autolooting"].set(
-            format_toggle(
-                "Autolooting",
-                bool(snap.get("looting_active", False)),
-                config.LOOTING_TOGGLE_1,
-                config.LOOTING_TOGGLE_2,
-            )
-        )
-        self.vars["repot"].set(
-            format_toggle(
-                "Re-poting",
-                bool(snap.get("repot_active", False)),
-                config.REPOT_TOGGLE_1,
-                config.REPOT_TOGGLE_2,
-            )
-        )
-        self.vars["rebuff"].set(
-            format_toggle(
-                "Re-buffing",
-                bool(snap.get("rebuff_active", False)),
-                config.REBUFF_TOGGLE_1,
-                config.REBUFF_TOGGLE_2,
-            )
-        )
-        self.vars["last_actions"].set(
-            format_last_actions(snap.get("last_actions"))
-        )
-        self.vars["buffs"].set(format_buffs(snap.get("schedule_status")))
-        self.vars["buff_countdowns"].set(
-            format_buff_countdowns(snap.get("schedule_status"))
-        )
-        self._after_id = self.root.after(REFRESH_MS, self.refresh)
+        try:
+            if self._closed:
+                return
+            snap = self._state.snapshot()
+            self.vars["hp"].set(format_percent("HP", snap.get("health_percent")))
+            self.vars["mp"].set(format_percent("MP", snap.get("mana_percent")))
+            self.vars["inputs"].set(f"Your keys held: {snap.get('physical_keys_held', 0)}")
+            self.vars["autolooting"].set(format_toggle("Autolooting", bool(snap.get("looting_active", False)), config.LOOTING_TOGGLE_1, config.LOOTING_TOGGLE_2))
+            self.vars["repot"].set(format_toggle("Re-poting", bool(snap.get("repot_active", False)), config.REPOT_TOGGLE_1, config.REPOT_TOGGLE_2))
+            self.vars["rebuff"].set(format_toggle("Re-buffing", bool(snap.get("rebuff_active", False)), config.REBUFF_TOGGLE_1, config.REBUFF_TOGGLE_2))
+            self.vars["last_actions"].set(format_last_actions(snap.get("last_actions")))
+            self.vars["buffs"].set(format_buffs(snap.get("schedule_status")))
+            self.vars["buff_countdowns"].set(format_buff_countdowns(snap.get("schedule_status")))
+        except Exception as exc:
+            from logger import logger
+            logger.error(f"OSD refresh error: {exc}")
+        finally:
+            if not self._closed:
+                self._after_id = self.root.after(REFRESH_MS, self.refresh)
 
     def close(self) -> None:
         """Closes the overlay (idempotent) and runs the ``on_close`` callback."""
         if self._closed:
             return
         self._closed = True
+        
+        # Stop the pynput listener cleanly
+        if hasattr(self, '_mouse_listener') and self._mouse_listener.is_alive():
+            self._mouse_listener.stop()
+            
         if self._after_id is not None:
             self.root.after_cancel(self._after_id)
         self.root.destroy()
@@ -277,12 +206,5 @@ class OSDWindow:
         self.root.mainloop()
 
 
-def launch_osd(state: SharedState, on_close: Optional[Callable[[], None]] = None
-           ) -> None:
-    """Creates the overlay and blocks until it is closed.
-
-    Args:
-        state: Shared state to display.
-        on_close: Optional callback invoked when the overlay closes.
-    """
+def launch_osd(state: SharedState, on_close: Optional[Callable[[], None]] = None) -> None:
     OSDWindow(state, on_close=on_close).run()
