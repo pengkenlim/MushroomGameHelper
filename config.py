@@ -369,7 +369,6 @@ LOADING_SCREEN_FADE_IN_TIME: float = 1.5
 
 # Template matching.
 TEMPLATES: Dict[str, str] = {
-    "mushroom": "templates/mushroom.png",
 }
 MATCH_THRESHOLD: float = _loaded.match_threshold
 TEMPLATE_THRESHOLDS: Dict[str, float] = {}
