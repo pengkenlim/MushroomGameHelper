@@ -450,55 +450,34 @@ class Action:
         return True
 
     def execute_buff_presses(self, keybinds: List[str]) -> None:
-        """Presses a single scheduled buff key per cycle using non-blocking async.
-
-        If multiple buffs are queued, only the first is processed this cycle.
-        The rest are pushed back into the shared state to be processed on
-        subsequent 100ms ticks, preventing the action thread from blocking.
-
-        Args:
-            keybinds: Keys to press, in order.
-        """
+        """Presses a single scheduled buff key per cycle using non-blocking async."""
         for keybind in keybinds:
             if keybind == config.LOOTING_KEYBIND.strip() and config.LOOTING_KEYBIND:
                 logger.warning(f"Skipping buff key '{keybind}': looting hold key.")
                 continue
-
-            # Only process the first valid buff this cycle
             now = time.perf_counter()
             if self._last_buff_input is not None:
                 wait = config.BUFF_INPUT_COOLDOWN - (now - self._last_buff_input)
                 if wait > 0:
-                    # Not ready yet, push all remaining back to queue and exit
                     for kb in keybinds[keybinds.index(keybind):]:
                         self._state.append_buff_press(kb)
                     return
-
             self._last_buff_input = now
             logger.info(f"Pressing buff: {keybind}")
             self.press_async(keybind)
-
-            # Push the rest back to the queue for the next tick
             remaining = keybinds[keybinds.index(keybind) + 1:]
             for kb in remaining:
                 self._state.append_buff_press(kb)
             return
 
     def manage_looting(self, looting_active: bool, user_is_acting: bool) -> None:
-        """Holds the looting key if active and no user conflicts exist.
-
-        Args:
-            looting_active: Current toggle state from SharedState.
-            user_is_acting: True if the user is holding a non-movement key.
-        """
+        """Holds the looting key if active and no user conflicts exist."""
         keybind = config.LOOTING_KEYBIND.strip()
         if not keybind:
             return
-
         if not looting_active:
             self.release(keybind)
             return
-
         if user_is_acting:
             self.release(keybind)
         else:
@@ -651,19 +630,12 @@ class Action:
         """Runs one action cycle with context-aware looting."""
         pending = state.drain_buff_presses()
         snapshot = state.snapshot()
-
         looting_active = bool(snapshot.get("looting_active", False))
         user_is_acting = int(snapshot.get("physical_keys_held", 0)) > 0
         bot_wants_to_act = bool(pending) or snapshot.get("health_low") or snapshot.get("mana_low")
-
-        # Pre-emptively release loot if there's a conflict
         if looting_active and (user_is_acting or bot_wants_to_act):
             self.release(config.LOOTING_KEYBIND.strip())
-
-        # Execute bot actions (only processes one buff per tick now)
         if pending:
             self.execute_buff_presses(pending)
         self.decide(snapshot)
-
-        # Re-evaluate and hold loot if the coast is clear
         self.manage_looting(looting_active, user_is_acting)

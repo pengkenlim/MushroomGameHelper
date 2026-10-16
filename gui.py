@@ -952,12 +952,17 @@ class App:
 
     def stop(self) -> None:
         """Stops the worker threads."""
-                # Close OSD
         if self._osd is not None:
-            self._osd.close()
+            try:
+                self._osd.close()
+            except Exception:
+                pass
             self._osd = None
         if self._osd_root is not None:
-            self._osd_root.destroy()
+            try:
+                self._osd_root.destroy()
+            except Exception:
+                pass
             self._osd_root = None
         self.runner.stop()
         self.start_btn.config(state=tk.NORMAL)
@@ -1101,6 +1106,18 @@ class App:
         ``after`` callbacks and a running calibrator are cancelled first.
         """
         self._closing = True
+        if self._osd is not None:
+            try:
+                self._osd.close()
+            except Exception:
+                pass
+            self._osd = None
+        if self._osd_root is not None:
+            try:
+                self._osd_root.destroy()
+            except Exception:
+                pass
+            self._osd_root = None
         for after_id in (self._refresh_id, self._poll_id):
             if after_id is not None:
                 try:
