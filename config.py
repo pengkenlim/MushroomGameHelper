@@ -401,14 +401,14 @@ KEYBINDS: Dict[str, str] = {
 SCHEDULER_INTERVAL: float = 0.05
 
 # Minimum seconds between two automated buff key presses (global input gap).
-BUFF_INPUT_COOLDOWN: float = 0.8
+BUFF_INPUT_COOLDOWN: float = 0.7
 
 # How long (seconds) a tap-style key is held.
-DEFAULT_PRESS_DURATION: float = 0.05
+DEFAULT_PRESS_DURATION: float = 0.1
 
 # Gap (seconds) between the release and the re-press, so the game engine
 # registers two distinct key events.
-LOOTING_RETRIGGER_GAP: float = 0.05
+LOOTING_RETRIGGER_GAP: float = 0.25
 
 
 def current_config() -> Config:
