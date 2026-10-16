@@ -131,7 +131,7 @@ class KeyComboListener:
         """Atomically flips a named boolean in the shared state."""
         with self._toggle_lock:
             new_state = self._state.toggle(flag_name)
-            logger.info(f"{flag_name} toggled: {flag_name}={new_state}")
+            logger.info(f"!!! TOGGLE DETECTED: {flag_name} is now {new_state} !!!")
 
     @staticmethod
     def _bot_key_names() -> Set[str]:
@@ -449,20 +449,48 @@ class Action:
         self._state.set("last_input_timestamp", time.perf_counter())
         return True
 
+    def decide(self, snapshot: Dict[str, object]) -> None:
+        """Triggers heal/mana keys from a state snapshot, honoring cooldowns."""
+        if not snapshot.get("repot_active", False):
+            return
+        if snapshot.get("health_low"):
+            self.trigger(config.HEALTH.keybind, config.HEALTH.cooldown, "health")
+        if snapshot.get("mana_low"):
+            self.trigger(config.MANA.keybind, config.MANA.cooldown, "mana")
+
     def execute_buff_presses(self, keybinds: List[str]) -> None:
-        """Presses a single scheduled buff key per cycle using non-blocking async."""
+        """Presses scheduled buff keys, respecting the buff cast animation lockout."""
+        if not self._state.get("rebuff_active", False):
+            return
+            
         for keybind in keybinds:
             if keybind == config.LOOTING_KEYBIND.strip() and config.LOOTING_KEYBIND:
                 continue
+                
             now = time.perf_counter()
+            
+            if now < self._buff_lockout_until:
+                for kb in keybinds[keybinds.index(keybind):]:
+                    self._state.append_buff_press(kb)
+                return
+                
             if self._last_buff_input is not None:
                 wait = config.BUFF_INPUT_COOLDOWN - (now - self._last_buff_input)
                 if wait > 0:
                     for kb in keybinds[keybinds.index(keybind):]:
                         self._state.append_buff_press(kb)
                     return
+                    
             self._last_buff_input = now
             self.press_async(keybind)
+            self._buff_lockout_until = now + config.BUFF_CAST_LOCKOUT
+            logger.info(f"Cast buff '{keybind}'. Lockout active for {config.BUFF_CAST_LOCKOUT}s.")
+            
+            with self._lock:
+                last_actions = list(self._state.get("last_actions", []))
+                last_actions.append({"key": keybind, "time": time.time()})
+                self._state.set("last_actions", last_actions[-3:])
+                
             remaining = keybinds[keybinds.index(keybind) + 1:]
             for kb in remaining:
                 self._state.append_buff_press(kb)
@@ -472,10 +500,17 @@ class Action:
         """Holds the looting key if active and no user conflicts exist."""
         keybind = config.LOOTING_KEYBIND.strip()
         if not keybind:
+            if looting_active and not getattr(self, "_warned_empty_loot", False):
+                logger.warning("Looting toggled ON, but 'Looting Keybind' is empty in settings. No key will be pressed.")
+                self._warned_empty_loot = True
             return
+            
+        self._warned_empty_loot = False
+        
         if not looting_active:
             self.release(keybind)
             return
+            
         if user_is_acting:
             self.release(keybind)
         else:
