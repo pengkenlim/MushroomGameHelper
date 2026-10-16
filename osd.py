@@ -103,25 +103,30 @@ def make_click_through(root: tk.Tk) -> bool:
         user32.SetWindowLongW(hwnd, gwl_exstyle, style)
         
         WM_NCHITTEST = 0x0084
+        WM_RBUTTONDOWN = 0x0204
+        WM_NCLBUTTONDOWN = 0x00A1
         HTTRANSPARENT = -1
         HTCAPTION = 2
         VK_LBUTTON = 0x01
-        VK_RBUTTON = 0x02
         GWL_WNDPROC = -4
         
         WNDPROC = ctypes.WINFUNCTYPE(ctypes.c_long, wintypes.HWND, ctypes.c_uint, wintypes.WPARAM, wintypes.LPARAM)
         
         def wndproc(hwnd, msg, wparam, lparam):
+            # Intercept Right Mouse Button to initiate drag
+            if msg == WM_RBUTTONDOWN:
+                user32.ReleaseCapture()
+                user32.SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0)
+                return 0
+                
             if msg == WM_NCHITTEST:
                 lbutton_state = user32.GetAsyncKeyState(VK_LBUTTON)
-                rbutton_state = user32.GetAsyncKeyState(VK_RBUTTON)
                 if lbutton_state & 0x8000:
                     return HTTRANSPARENT
-                if rbutton_state & 0x8000:
-                    return HTCAPTION
-                return HTTRANSPARENT
+                
+                # Let original proc handle hit test (so it receives WM_RBUTTONDOWN)
+                return _osd_original_wndproc(hwnd, msg, wparam, lparam)
             
-            # Safely call the original Tkinter window proc using the casted callable
             return _osd_original_wndproc(hwnd, msg, wparam, lparam)
             
         global _osd_wndproc_callback, _osd_original_wndproc
@@ -133,13 +138,14 @@ def make_click_through(root: tk.Tk) -> bool:
             user32.GetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int]
             user32.GetWindowLongPtrW.restype = wintypes.LPARAM
             raw_proc = user32.GetWindowLongPtrW(hwnd, GWL_WNDPROC)
+            
+            # CRITICAL: Assign the original proc BEFORE installing the hook to prevent race conditions
+            _osd_original_wndproc = ctypes.cast(raw_proc, WNDPROC)
             user32.SetWindowLongPtrW(hwnd, GWL_WNDPROC, ctypes.cast(_osd_wndproc_callback, wintypes.LPARAM))
         else:
             raw_proc = user32.GetWindowLongW(hwnd, GWL_WNDPROC)
+            _osd_original_wndproc = ctypes.cast(raw_proc, WNDPROC)
             user32.SetWindowLongW(hwnd, GWL_WNDPROC, ctypes.cast(_osd_wndproc_callback, wintypes.LPARAM))
-            
-        # Cast the raw pointer to a callable Python function to prevent 64-bit truncation
-        _osd_original_wndproc = ctypes.cast(raw_proc, WNDPROC)
 
         swp_nomove = 0x0002
         swp_nosize = 0x0001
