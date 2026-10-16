@@ -951,7 +951,6 @@ class App:
                 self._osd_root = tk.Toplevel(self.root)
                 self._osd = OSDWindow(self.runner.state, root=self._osd_root)
             except Exception as exc:
-                from logger import logger
                 logger.error(f"Failed to start OSD: {exc}")
                 self._osd = None
         except Exception as exc:  # e.g. no display / input backend
