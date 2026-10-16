@@ -340,6 +340,8 @@ GLOBAL_RESOLUTION_LIMIT: float = 0.01
 # pots, loots, other buffs) are suppressed for this duration because the
 # game will ignore them.
 BUFF_CAST_LOCKOUT: float = 0.8
+# Time (seconds) between the two rapid presses of a buff key to interrupt held keys.
+BUFF_DOUBLE_TAP_GAP: float = 0.1
 # Backward-compatible alias used by earlier action timing checks.
 RESOLUTION_LIMIT: float = GLOBAL_RESOLUTION_LIMIT
 # Minimum seconds between ANY two automated key presses. Prevents the game

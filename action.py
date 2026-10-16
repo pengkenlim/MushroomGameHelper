@@ -370,6 +370,17 @@ class Action:
         timer.daemon = True
         timer.start()
 
+    def press_buff_async(self, name: str) -> None:
+        """Presses a buff key twice in quick succession to interrupt held keys.
+        
+        Schedules the second press after BUFF_DOUBLE_TAP_GAP seconds to ensure 
+        the game engine registers the cast even if the user is holding an attack key.
+        """
+        self.press_async(name)
+        timer = threading.Timer(config.BUFF_DOUBLE_TAP_GAP, self.press_async, args=(name,))
+        timer.daemon = True
+        timer.start()
+
     def _can_press(self, is_buff: bool) -> bool:
         """Checks if an automated press is allowed right now.
 
@@ -482,7 +493,7 @@ class Action:
                     return
                     
             self._last_buff_input = now
-            self.press_async(keybind)
+            self.press_buff_async(keybind)
             self._buff_lockout_until = now + config.BUFF_CAST_LOCKOUT
             logger.info(f"Cast buff '{keybind}'. Lockout active for {config.BUFF_CAST_LOCKOUT}s.")
             
@@ -617,7 +628,10 @@ class Action:
         self._last_automated_input = time.perf_counter()
         logger.info(f"Dispatching '{key}' ({reason})")
         self._record_press(is_buff=is_buff)
-        self.press_async(key)
+        if is_buff:
+            self.press_buff_async(key)
+        else:
+            self.press_async(key)
         self._state.set("last_input_timestamp", time.perf_counter())
         with self._lock:
             last_actions = list(self._state.get("last_actions", []))
