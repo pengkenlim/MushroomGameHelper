@@ -44,6 +44,17 @@ Everything is set up from one tabbed window, and a small in-game overlay shows w
 
 ---
 
+### 🤔 Why use this tool instead of other bots?
+
+If you've looked into Mushroom game automation before, you've probably seen other tools. Here is how MushroomGameHelper is different.
+
+*   **External-Only (Safer):** It never reads game memory or injects DLLs. It simply watches your monitor and presses keys on your OS, making it indistinguishable (in theory) from a hardware macro keyboard.
+*   **Visual Calibration:** No more taking screenshots to find hex codes. The interactive OpenCV GUI lets you just drag a box around your bars and click to calibrate.
+*   **Dynamic & Robust:** Built-in dynamic window tracking and temporal median filters mean the bot won't break if you move your game window or if the UI flashes. 
+*   **Game-Agnostic:** It doesn't contain a single line of game-specific code. It's a generic 2D side-scroller framework that happens to work on a mushroom game.
+*   **Free & Open Source:** Some tools charge for similar functionality, but MushroomGameHelper is completely free.The entire project is freely available and open source, allowing anyone to inspect, modify, and contribute. 
+*   **Terms of Service Compliant:** MushroomGameHelper operates entirely externally and does not modify the game client, helping you stay within the game's terms of service. MushroomGameHelper does not fully-automate key gameplay loop actions such as combat or questing.
+
 ## 📑 Table of Contents
 
 1. [🚀 Quick Start](#quick-start)
@@ -724,8 +735,9 @@ To keep the core architecture intact for my portfolio, I am not currently accept
 
 <a id="philosophy"></a>
 
+
 ## 🍄 A Note on the Project’s Origins and Philosophy
-Hello everyone! I would like to dabble in software engineering as a hobby, but am woefully inexperienced. As such, I built this project primarily as a personal learning exercise and a portfolio piece. To tackle complex topics like multi-threaded architecture and computer vision, I’ve been experimenting with using AI as a pair-programming tutor to help scaffold the initial framework. My goal isn't just to ship a tool, but to iteratively refine, debug, and deeply understand every line of code so I can grow from relying on AI assistance to mastering the underlying software engineering principles myself. I’ve always loved classic 2D pixelated side-scrollers (a mushroom game in particular), and I’m sharing this publicly to learn from this amazing community, catch bugs I couldn't find alone, and hopefully help a few people along the way.
+Hello everyone! I would like to dabble in software engineering as a hobby, but am woefully inexperienced. As such, I built this project primarily as a personal learning exercise and a portfolio piece. To tackle complex topics like multi-threaded architecture and computer vision, I’ve been experimenting with using AI as a pair-programming tutor to help scaffold the initial framework. My goal isn't just to ship a tool, but to iteratively refine, debug, and deeply understand every line of code so I can grow from relying on AI assistance to mastering the underlying software engineering principles myself. I’ve always loved 2D pixelated side-scrollers (a classic version of a mushroom game in particular), and I’m sharing this publicly to learn from this amazing community, catch bugs I couldn't find alone, and hopefully help a few people along the way.
 
 As I developed the tool, I wanted to make sure it respected the spirit of the game(s) we love. Here are a few thoughts on why I built it and how I hope it gets used:
 
@@ -736,7 +748,7 @@ I have immense respect for game design and the effort required to progress. This
 During my own long grinding sessions, I noticed my hands getting fatigued and my focus draining from constantly tracking multiple overlapping buff timers and health bars. I realized that this heavy cognitive and motor load can be a genuine barrier to entry, especially for players dealing with repetitive strain, motor challenges, or attention difficulties. I hope this tool can serve as a gentle accessibility bridge, allowing more people to comfortably enjoy the end-game content they love without physical burnout.
 
 **Bridging the Free-to-Play Gap**
-In many classic MMOs, built-in quality-of-life features like auto-looting and auto-buffing are often tied to in-game cash purchases (e.g., premium cash-shop pets in a certain mushroom game). As a money-tight and a Free-to-Play (F2P) player, I couldn't always justify those purchases, but I still wanted to enjoy the game comfortably without my hands hurting. I built this as a free, open-source alternative to help bridge that gap for the F2P community. That said, I deeply respect the developers who keep the servers running, and I always encourage supporting them through cosmetics and other official channels!
+In many MMOs, built-in quality-of-life features like auto-looting and auto-buffing are often tied to in-game cash purchases (e.g., premium cash-shop pets in a certain classic mushroom game). As a money-tight and a Free-to-Play (F2P) player, I couldn't always justify those purchases, but I still wanted to enjoy the game comfortably without my hands hurting. I built this as a free, open-source alternative to help bridge that gap for the F2P community. That said, I deeply respect the developers who keep the servers running, and I always encourage supporting them through cosmetics and other official channels!
 
 **A Generic Technical Framework**
 From a technical standpoint, the code itself contains no references, memory-reading hooks, or IP-specific data for any particular game. It is entirely blind to what you are playing; it simply watches a configurable rectangle of pixels on your monitor and simulates keystrokes based on the colors it sees. 
@@ -745,13 +757,17 @@ Thank you for checking out my project. Whether you use it to save your hands, fo
 
 PS: consider leaving a star on this repo⭐ It gives me a gauge of general interest from the community and keeps me motivated!
 
+> [!NOTE]
+> **A Quick Note on the Current State (and a Small Apology!)**
+> Because this is an active, solo student learning project, the UI and user experience are still very much a "Work in Progress." You will likely encounter some UI/UX jankiness, unpolished menus, or the occasional bug. I sincerely apologize in advance for these rough edges! I am iteratively refining the tool and learning as I go. If you run into a bug or find a workflow that feels clunky, please open an Issue. Your feedback is genuinely the best way for me to learn what needs polishing next.
+
 ---
 
 <div align="center">
 
 **Use responsibly and only in games whose terms of service permit automation.**
 
-An excuse to make my life easier in a certain mushroom game. *WINK WINK*
+An excuse to make my life easier in a certain classic mushroom game. *WINK WINK*
 
 </div>
 
