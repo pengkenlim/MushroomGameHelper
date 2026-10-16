@@ -589,7 +589,7 @@ class Action:
             return
         if now - self._last_automated_input < config.GLOBAL_ACTION_COOLDOWN:
             return  # budget exhausted; retried on the next 10 Hz tick
-        critical = best <= PRIORITY_MANA
+        critical = best <= PRIORITY_BUFF
         if not critical or config.DEFER_CRITICAL_ACTIONS:
             held = int(snapshot.get("physical_keys_held", 0) or 0)
             if held >= config.MAX_PHYSICAL_KEYS:

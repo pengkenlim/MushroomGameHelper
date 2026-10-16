@@ -114,6 +114,19 @@ class OSDWindow:
                      font=FONT, anchor="w", justify=tk.LEFT,
                      padx=8, pady=1).pack(fill=tk.X)
 
+        # Add drag hint at top-right corner
+        self.drag_hint = tk.Label(
+            self.root,
+            text="🖱️ Right-click to drag",
+            bg=BG_COLOR,
+            fg="#888888",  # Dimmer gray color
+            font=("Consolas", 8),  # Smaller font
+            anchor="ne",
+            padx=4,
+            pady=2
+        )
+        self.drag_hint.place(relx=1.0, rely=0.0, anchor="ne")
+
         self.root.protocol("WM_DELETE_WINDOW", self.close)
         
         # --- DRAG & CLICK-THROUGH LOGIC ---
@@ -151,11 +164,15 @@ class OSDWindow:
                     self._dragging = True
                     self._drag_start_x = x
                     self._drag_start_y = y
+                    # Hide the hint while dragging
+                    self.drag_hint.place_forget()
                 else:
                     # Right button released: Re-enable transparency
                     self._dragging = False
                     if CLICK_THROUGH:
                         set_window_transparent(self._hwnd, True)
+                    # Show the hint again
+                    self.drag_hint.place(relx=1.0, rely=0.0, anchor="ne")
 
         self._mouse_listener = mouse.Listener(on_move=on_move, on_click=on_click)
         self._mouse_listener.start()
