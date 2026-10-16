@@ -363,6 +363,9 @@ SMOOTHING_WINDOW: int = 4
 # Percentage of the screen (0.0 to 1.0) that must be pitch black to trigger
 # the loading screen state (e.g., during portal travel).
 LOADING_SCREEN_BLACK_RATIO_THRESHOLD: float = 0.70
+# Seconds to wait after the black screen clears before trusting HP/MP readings
+# again. Prevents false triggers during the map fade-in animation.
+LOADING_SCREEN_FADE_IN_TIME: float = 0.8
 
 # Template matching.
 TEMPLATES: Dict[str, str] = {

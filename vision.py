@@ -42,6 +42,7 @@ class Vision:
         }
         self._bar_none_streak: Dict[str, int] = {"health": 0, "mana": 0}
         self._no_match_streak: Dict[str, int] = {}
+        self._loading_screen_ended_at: float = 0.0
         self.templates: Dict[str, np.ndarray] = {}
         for name, path in config.TEMPLATES.items():
             image = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
@@ -327,14 +328,29 @@ class Vision:
         # Detect loading screen (mostly black screen during portal travel)
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         black_pixels = np.sum(gray < 20)
-        is_loading = (black_pixels / gray.size) > config.LOADING_SCREEN_BLACK_RATIO_THRESHOLD
-
-        if is_loading:
-            # Prevent false low-HP/MP triggers and show 100% on OSD
+        is_black_screen = (black_pixels / gray.size) > config.LOADING_SCREEN_BLACK_RATIO_THRESHOLD
+        
+        if is_black_screen:
+            self._loading_screen_ended_at = 0.0
+            is_loading = True
             health = 100.0
             mana = 100.0
             health_low = False
             mana_low = False
+        else:
+            # Just transitioned from black to not-black, start the fade-in timer
+            if self._loading_screen_ended_at == 0.0:
+                self._loading_screen_ended_at = time.perf_counter()
+                
+            # If we are still within the fade-in grace period, treat as loading
+            if time.perf_counter() - self._loading_screen_ended_at < config.LOADING_SCREEN_FADE_IN_TIME:
+                is_loading = True
+                health = 100.0
+                mana = 100.0
+                health_low = False
+                mana_low = False
+            else:
+                is_loading = False
 
         return {
             "matches": matches,
