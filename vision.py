@@ -321,13 +321,29 @@ class Vision:
         self._track_bar("mana", raw_mana)
         health = self.smoothed_percent("health", raw_health)
         mana = self.smoothed_percent("mana", raw_mana)
+        health_low = health < config.HEALTH.threshold_percent
+        mana_low = mana < config.MANA.threshold_percent
+
+        # Detect loading screen (mostly black screen during portal travel)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        black_pixels = np.sum(gray < 20)
+        is_loading = (black_pixels / gray.size) > config.LOADING_SCREEN_BLACK_RATIO_THRESHOLD
+
+        if is_loading:
+            # Prevent false low-HP/MP triggers and show 100% on OSD
+            health = 100.0
+            mana = 100.0
+            health_low = False
+            mana_low = False
+
         return {
             "matches": matches,
             "targets_visible": any(matches.values()),
             "health_percent": health,
             "mana_percent": mana,
-            "health_low": health < config.HEALTH.threshold_percent,
-            "mana_low": mana < config.MANA.threshold_percent,
+            "health_low": health_low,
+            "mana_low": mana_low,
+            "is_loading": is_loading,
         }
 
     def process(self) -> Dict[str, Any]:

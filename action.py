@@ -660,12 +660,25 @@ class Action:
                 self._enqueue(PRIORITY_MANA, config.MANA.keybind, "mana")
 
     def run_cycle(self, state: SharedState) -> None:
-        """Runs one action cycle with context-aware looting."""
+        """Runs one action cycle with context-aware looting and loading screen detection."""
         pending = state.drain_buff_presses()
         snapshot = state.snapshot()
+        
+        # Loading screen detection: pause all actions and preserve queue
+        if snapshot.get("is_loading", False):
+            if pending:
+                # Put buffs back in the queue to fire when loading finishes
+                for kb in pending:
+                    state.append_buff_press(kb)
+            keybind = config.LOOTING_KEYBIND.strip()
+            if keybind:
+                self.release(keybind)
+            return
+
         looting_active = bool(snapshot.get("looting_active", False))
         user_is_acting = int(snapshot.get("physical_keys_held", 0)) > 0
         bot_wants_to_act = bool(pending) or snapshot.get("health_low") or snapshot.get("mana_low")
+        
         if looting_active and (user_is_acting or bot_wants_to_act):
             self.release(config.LOOTING_KEYBIND.strip())
         if pending:

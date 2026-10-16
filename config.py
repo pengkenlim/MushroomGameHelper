@@ -360,6 +360,9 @@ DEFER_CRITICAL_ACTIONS: bool = False
 
 # Temporal filter: number of frames in the rolling median window.
 SMOOTHING_WINDOW: int = 4
+# Percentage of the screen (0.0 to 1.0) that must be pitch black to trigger
+# the loading screen state (e.g., during portal travel).
+LOADING_SCREEN_BLACK_RATIO_THRESHOLD: float = 0.70
 
 # Template matching.
 TEMPLATES: Dict[str, str] = {
