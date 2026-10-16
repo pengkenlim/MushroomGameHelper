@@ -5,6 +5,9 @@ import time
 import tkinter as tk
 from typing import Any, Callable, Dict, List, Optional
 
+_osd_wndproc_callback = None
+_osd_original_wndproc = None
+
 import config
 from state import SharedState
 
@@ -80,17 +83,10 @@ def format_buff_countdowns(schedule_status: Optional[List[Dict[str, Any]]]) -> s
 
 
 def make_click_through(root: tk.Tk) -> bool:
-    """Makes the window ignore mouse input and never take focus (Windows only).
+    """Makes the window ignore left clicks but allows right-click dragging (Windows only).
 
-    Adds the ``WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE |
-    WS_EX_TOOLWINDOW`` extended styles through ``ctypes``. Other platforms have
-    no equivalent in plain Tkinter, so nothing is changed there.
-
-    Args:
-        root: The overlay window (must already be realized).
-
-    Returns:
-        True if the styles were applied.
+    Uses WM_NCHITTEST to dynamically route left clicks to the game underneath
+    and treat right clicks as title-bar drags.
     """
     if not CLICK_THROUGH:
         return False
@@ -98,16 +94,55 @@ def make_click_through(root: tk.Tk) -> bool:
         return False
     try:
         import ctypes
-        user32 = ctypes.windll.user32  # type: ignore[attr-defined]
+        from ctypes import wintypes
+        
+        user32 = ctypes.windll.user32
         root.update_idletasks()
         hwnd = user32.GetParent(root.winfo_id()) or root.winfo_id()
+        
+        # Apply extended styles (Layered, NoActivate, ToolWindow)
+        # WS_EX_TRANSPARENT (0x00000020) is REMOVED so we can intercept messages
         gwl_exstyle = -20
         style = user32.GetWindowLongW(hwnd, gwl_exstyle)
-        style |= 0x00080000 | 0x00000020 | 0x08000000 | 0x00000080
+        style |= 0x00080000 | 0x08000000 | 0x00000080  
         user32.SetWindowLongW(hwnd, gwl_exstyle, style)
-        # Extended styles only take effect after the window frame is rebuilt.
-        swp_nosize = 0x0001
+        
+        WM_NCHITTEST = 0x0084
+        HTTRANSPARENT = -1
+        HTCAPTION = 2
+        VK_LBUTTON = 0x01
+        VK_RBUTTON = 0x02
+        GWL_WNDPROC = -4
+        
+        WNDPROC = ctypes.WINFUNCTYPE(ctypes.c_long, wintypes.HWND, ctypes.c_uint, wintypes.WPARAM, wintypes.LPARAM)
+        
+        def wndproc(hwnd, msg, wparam, lparam):
+            if msg == WM_NCHITTEST:
+                lbutton_state = user32.GetAsyncKeyState(VK_LBUTTON)
+                rbutton_state = user32.GetAsyncKeyState(VK_RBUTTON)
+                if lbutton_state & 0x8000:
+                    return HTTRANSPARENT
+                if rbutton_state & 0x8000:
+                    return HTCAPTION
+                return HTTRANSPARENT
+            return user32.CallWindowProcW(_osd_original_wndproc, hwnd, msg, wparam, lparam)
+            
+        global _osd_wndproc_callback, _osd_original_wndproc
+        _osd_wndproc_callback = WNDPROC(wndproc)
+        
+        if hasattr(user32, "SetWindowLongPtrW"):
+            user32.SetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int, wintypes.LPARAM]
+            user32.SetWindowLongPtrW.restype = wintypes.LPARAM
+            user32.GetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int]
+            user32.GetWindowLongPtrW.restype = wintypes.LPARAM
+            _osd_original_wndproc = user32.GetWindowLongPtrW(hwnd, GWL_WNDPROC)
+            user32.SetWindowLongPtrW(hwnd, GWL_WNDPROC, ctypes.cast(_osd_wndproc_callback, wintypes.LPARAM))
+        else:
+            _osd_original_wndproc = user32.GetWindowLongW(hwnd, GWL_WNDPROC)
+            user32.SetWindowLongW(hwnd, GWL_WNDPROC, ctypes.cast(_osd_wndproc_callback, wintypes.LPARAM))
+
         swp_nomove = 0x0002
+        swp_nosize = 0x0001
         swp_nozorder = 0x0004
         swp_noactivate = 0x0010
         swp_framechanged = 0x0020
@@ -116,7 +151,9 @@ def make_click_through(root: tk.Tk) -> bool:
             swp_nomove | swp_nosize | swp_nozorder
             | swp_noactivate | swp_framechanged)
         return True
-    except (OSError, AttributeError):
+    except (OSError, AttributeError) as e:
+        from logger import logger
+        logger.warning(f"Failed to setup OSD click-through/drag: {e}")
         return False
 
 

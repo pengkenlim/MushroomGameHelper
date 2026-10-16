@@ -365,7 +365,7 @@ SMOOTHING_WINDOW: int = 4
 LOADING_SCREEN_BLACK_RATIO_THRESHOLD: float = 0.70
 # Seconds to wait after the black screen clears before trusting HP/MP readings
 # again. Prevents false triggers during the map fade-in animation.
-LOADING_SCREEN_FADE_IN_TIME: float = 0.8
+LOADING_SCREEN_FADE_IN_TIME: float = 1.5
 
 # Template matching.
 TEMPLATES: Dict[str, str] = {
