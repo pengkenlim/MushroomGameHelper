@@ -1069,34 +1069,61 @@ class App:
                 f"+{config.LOOTING_TOGGLE_2} to toggle)")
 
     def show_exit_popup(self) -> tk.Toplevel:
-        """Shows a thank-you popup with a link to the GitHub repository."""
+        """Shows a high-converting thank-you popup with a link to the GitHub repository."""
         popup = tk.Toplevel(self.root)
-        popup.title("Thanks")
+        popup.title("Support the Project")
         popup.transient(self.root)
+        popup.configure(padx=20, pady=20)
 
+        # Psychological Framing (Using your exact text)
         ttk.Label(
             popup,
-            text=(
-                "Thanks for using the tool! If useful to you, please consider "
-                "leaving feedback and giving a star to the repo!"
-            ),
-            wraplength=360,
+            text="If this tool helped you today, please consider\n"
+                 "leaving a star on this repo! ⭐\n\n"
+                 "It gives me a sense of the community's overall\n"
+                 "interest and keeps me motivated!",
+            wraplength=380,
             justify=tk.CENTER,
-        ).pack(padx=16, pady=(16, 8))
+            font=("Segoe UI", 11)
+        ).pack(pady=(10, 20))
 
-        ttk.Button(
+        # Primary Action: Open Browser and Copy Link
+        def open_and_copy():
+            self.root.clipboard_clear()
+            self.root.clipboard_append("https://github.com/pengkenlim/MushroomGameHelper")
+            webbrowser.open("https://github.com/pengkenlim/MushroomGameHelper")
+            popup.destroy()
+
+        star_btn = tk.Button(
             popup,
-            text="Open GitHub Repository",
-            command=lambda: webbrowser.open(
-                "https://github.com/pengkenlim/MushroomGameHelper"
-            ),
-        ).pack(pady=(0, 8))
-
-        ttk.Button(popup, text="Close", command=popup.destroy).pack(
-            pady=(0, 16)
+            text="⭐ Star on GitHub (Link Copied!) ⭐",
+            command=open_and_copy,
+            bg="#24292e",  # GitHub Dark Theme Color
+            fg="white",
+            font=("Segoe UI", 11, "bold"),
+            padx=20,
+            pady=10,
+            relief=tk.FLAT,
+            cursor="hand2"
         )
+        star_btn.pack(pady=(0, 15))
+
+        # Secondary Action: Just Close
+        ttk.Button(
+            popup, 
+            text="No thanks, just close", 
+            command=popup.destroy
+        ).pack(pady=(0, 5))
+
         popup.grab_set()
         popup.protocol("WM_DELETE_WINDOW", popup.destroy)
+        
+        # Center the popup on the main window
+        popup.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (popup.winfo_width() // 2)
+        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (popup.winfo_height() // 2)
+        popup.geometry(f"+{x}+{y}")
+        
         return popup
 
     def on_close(self) -> None:
