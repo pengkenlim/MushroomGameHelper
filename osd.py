@@ -83,11 +83,7 @@ def format_buff_countdowns(schedule_status: Optional[List[Dict[str, Any]]]) -> s
 
 
 def make_click_through(root: tk.Tk) -> bool:
-    """Makes the window ignore left clicks but allows right-click dragging (Windows only).
-
-    Uses WM_NCHITTEST to dynamically route left clicks to the game underneath
-    and treat right clicks as title-bar drags.
-    """
+    """Makes the window ignore left clicks but allows right-click dragging (Windows only)."""
     if not CLICK_THROUGH:
         return False
     if sys.platform != "win32":
@@ -100,10 +96,9 @@ def make_click_through(root: tk.Tk) -> bool:
         root.update_idletasks()
         hwnd = user32.GetParent(root.winfo_id()) or root.winfo_id()
         
-        # Apply extended styles (Layered, NoActivate, ToolWindow)
-        # WS_EX_TRANSPARENT (0x00000020) is REMOVED so we can intercept messages
         gwl_exstyle = -20
         style = user32.GetWindowLongW(hwnd, gwl_exstyle)
+        # Layered | NoActivate | ToolWindow (Removed TRANSPARENT so we can intercept)
         style |= 0x00080000 | 0x08000000 | 0x00000080  
         user32.SetWindowLongW(hwnd, gwl_exstyle, style)
         
@@ -125,7 +120,9 @@ def make_click_through(root: tk.Tk) -> bool:
                 if rbutton_state & 0x8000:
                     return HTCAPTION
                 return HTTRANSPARENT
-            return user32.CallWindowProcW(_osd_original_wndproc, hwnd, msg, wparam, lparam)
+            
+            # Safely call the original Tkinter window proc using the casted callable
+            return _osd_original_wndproc(hwnd, msg, wparam, lparam)
             
         global _osd_wndproc_callback, _osd_original_wndproc
         _osd_wndproc_callback = WNDPROC(wndproc)
@@ -135,11 +132,14 @@ def make_click_through(root: tk.Tk) -> bool:
             user32.SetWindowLongPtrW.restype = wintypes.LPARAM
             user32.GetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int]
             user32.GetWindowLongPtrW.restype = wintypes.LPARAM
-            _osd_original_wndproc = user32.GetWindowLongPtrW(hwnd, GWL_WNDPROC)
+            raw_proc = user32.GetWindowLongPtrW(hwnd, GWL_WNDPROC)
             user32.SetWindowLongPtrW(hwnd, GWL_WNDPROC, ctypes.cast(_osd_wndproc_callback, wintypes.LPARAM))
         else:
-            _osd_original_wndproc = user32.GetWindowLongW(hwnd, GWL_WNDPROC)
+            raw_proc = user32.GetWindowLongW(hwnd, GWL_WNDPROC)
             user32.SetWindowLongW(hwnd, GWL_WNDPROC, ctypes.cast(_osd_wndproc_callback, wintypes.LPARAM))
+            
+        # Cast the raw pointer to a callable Python function to prevent 64-bit truncation
+        _osd_original_wndproc = ctypes.cast(raw_proc, WNDPROC)
 
         swp_nomove = 0x0002
         swp_nosize = 0x0001
