@@ -8,7 +8,7 @@
 
 </div>
 
-> **Attention:** Before downloading or using this tool, please take a moment to read the [Project Philosophy & Design Intent](#a-note-on-the-projects-origins-and-philosophy) statement at the bottom of this page. This project was built with deep respect for the game's core loop and the community in mind!
+> **Attention:** Before downloading or using this tool, please take a moment to read the [Project Philosophy & Design Intent](#-a-note-on-the-projects-origins-and-philosophy) statement at the bottom of this page. This project was built with deep respect for the game's core loop and the community in mind!
 
 ---
 
