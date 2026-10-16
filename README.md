@@ -14,7 +14,7 @@
 
 ## 🍄 What It Does
 
-MushroomGameHelper takes a picture of a rectangle of your screen four times a second, measures how full your **health** and **mana** bars are using plain colour maths (no machine learning), and presses your potion keys when a bar runs low. It can also press buffs on a timer, hold a loot key for you, and automatically adapt when you move the game window. Special care has been taken to avoid button conflicts and prioritize user input.
+MushroomGameHelper takes a picture of a rectangle of your screen 20 times a second, measures how full your **health** and **mana** bars are using plain colour maths (no machine learning), and presses your potion keys when a bar runs low. It can also press buffs on a timer, hold a loot key for you, and automatically adapt when you move the game window. Special care has been taken to avoid button conflicts and prioritize user input.
 
 Everything is set up from one tabbed window, and a small in-game overlay shows what the bot is doing.
 
