@@ -28,7 +28,6 @@ PRIORITY_HEAL: int = 0
 PRIORITY_MANA: int = 1
 PRIORITY_BUFF: int = 2
 PRIORITY_LOOT: int = 3
-PRIORITY_REENGAGE: int = 4
 
 # Left/right modifier variants are folded into one logical name so that a
 # chord such as ``ctrl+l`` matches either physical Ctrl key.
@@ -38,6 +37,7 @@ _MODIFIER_ALIASES: Dict[str, str] = {
     "alt_l": "alt", "alt_r": "alt", "alt_gr": "alt",
     "cmd_l": "cmd", "cmd_r": "cmd",
 }
+
 
 def normalize_key_name(name: str) -> str:
     """Maps left/right modifier variants onto their base name.
@@ -147,16 +147,15 @@ class KeyComboListener:
         return {normalize_key_name(str(k).strip().lower()) for k in raw if k}
 
     def _publish_physical_count(self) -> None:
+        """Publishes the count of physical action keys held to SharedState."""
         bot_keys = self._bot_key_names()
         ignored = config.IGNORED_PHYSICAL_KEYS
         with self._pressed_lock:
-            held_keys = self._physical - bot_keys - ignored
-            count = len(held_keys)
+            count = len(self._physical - bot_keys - ignored)
         try:
             self._state.set("physical_keys_held", count)
-            self._state.set("physical_keys_held_names", list(held_keys))
         except Exception as exc:
-            logger.debug(f"Could not publish physical key state: {exc}")
+            logger.debug(f"Could not publish physical key count: {exc}")
 
     def _on_press(self, key: Union[Key, KeyCode, None]) -> None:
         """Backward-compatible alias for the chord-detection callback."""
@@ -175,6 +174,7 @@ class KeyComboListener:
         self._toggle_state("rebuff_active")
 
     def on_press(self, key: Union[Key, KeyCode, None]) -> None:
+        """Records a key press and fires the callback on a matching chord."""
         import time
         try:
             self._state.set("last_input_timestamp", time.perf_counter())
@@ -205,6 +205,11 @@ class KeyComboListener:
                              exc_info=True)
 
     def on_release(self, key: Union[Key, KeyCode, None]) -> None:
+        """Forgets a released key.
+
+        Args:
+            key: Key reported by ``pynput``.
+        """
         import time
         try:
             self._state.set("last_input_timestamp", time.perf_counter())
@@ -260,7 +265,6 @@ class Action:
         self._queue: List[Tuple[int, str, str]] = []   # (priority, key, reason)
         self._last_automated_input: float = 0.0
         self._last_buff_input: Optional[float] = None
-        self._needs_reengage: bool = False
 
     @staticmethod
     def _resolve(name: str) -> KeyType | MouseButton:
@@ -297,6 +301,11 @@ class Action:
         self._state.set("last_input_timestamp", time.perf_counter())
 
     def hold(self, name: str) -> None:
+        """Starts holding a key (no-op if already held).
+
+        Args:
+            name: Logical action name or key name.
+        """
         with self._lock:
             if name not in self._held:
                 key = self._resolve(name)
@@ -307,6 +316,11 @@ class Action:
                 self._held.add(name)
 
     def release(self, name: str) -> None:
+        """Releases a held key (no-op if not held).
+
+        Args:
+            name: Logical action name or key name.
+        """
         with self._lock:
             if name in self._held:
                 key = self._resolve(name)
@@ -364,30 +378,6 @@ class Action:
         """
         self.press_async(name)
         timer = threading.Timer(config.BUFF_DOUBLE_TAP_GAP, self.press_async, args=(name,))
-        timer.daemon = True
-        timer.start()
-
-    def reengage(self, name: str) -> None:
-        """Resumes a user-held key by sending a quick release and press."""
-        key = self._resolve(name)
-        try:
-            if isinstance(key, MouseButton):
-                self._mouse.release(button=key)
-            else:
-                self._keyboard.release(key)
-        except Exception:
-            return
-
-        def press_down():
-            try:
-                if isinstance(key, MouseButton):
-                    self._mouse.press(button=key, click_count=1)
-                else:
-                    self._keyboard.press(key)
-            except Exception as exc:
-                logger.debug(f"Reengage press failed for {name}: {exc}")
-
-        timer = threading.Timer(0.05, press_down)
         timer.daemon = True
         timer.start()
 
@@ -461,7 +451,6 @@ class Action:
             logger.info(f"Triggered {key} due to low {resource}")
         self._record_press(is_buff=False)
         self.press_async(key)
-        self._needs_reengage = True
 
         with self._lock:
             last_actions = list(self._state.get("last_actions", []))
@@ -529,7 +518,6 @@ class Action:
                     
             self._last_buff_input = now
             self.press_buff_async(keybind)
-            self._needs_reengage = True
             self._buff_lockout_until = now + config.BUFF_CAST_LOCKOUT
             logger.info(f"Cast buff '{keybind}'. Lockout active for {config.BUFF_CAST_LOCKOUT}s.")
             
@@ -611,70 +599,68 @@ class Action:
             return min(item[0] for item in self._queue)
 
     def _dispatch(self, snapshot: Dict[str, object]) -> None:
-        """Fires at most one queued action per cycle."""
+        """Fires at most one queued action per cycle.
+
+        Enforces a global minimum gap between any two automated presses so the
+        game engine's limited input buffer is never given two simultaneous
+        key events. Low-priority actions (buff, loot) are deferred — not
+        dropped — while the user is physically holding many keys, because
+        engines like MapleStory Worlds cancel synthetic input once their input
+        slots are full. Critical actions (heal, mana) fire regardless unless
+        ``config.DEFER_CRITICAL_ACTIONS`` is True.
+
+        Args:
+            snapshot: Current shared-state snapshot.
+        """
         best = self._peek_priority()
         if best is None:
             return
         now = time.perf_counter()
         last_input = self._state.get("last_input_timestamp", 0.0)
         if now - last_input < config.GLOBAL_RESOLUTION_LIMIT:
+            logger.debug(
+                f"Deferring action: resolution limit active "
+                f"({config.GLOBAL_RESOLUTION_LIMIT - (now - last_input):.2f}s remaining)")
             return
         if now - self._last_automated_input < config.GLOBAL_ACTION_COOLDOWN:
-            return
-
+            return  # budget exhausted; retried on the next 10 Hz tick
+        critical = best <= PRIORITY_BUFF
+        if not critical or config.DEFER_CRITICAL_ACTIONS:
+            held = int(snapshot.get("physical_keys_held", 0) or 0)
+            if held >= config.MAX_PHYSICAL_KEYS:
+                logger.debug(
+                    f"Deferring action: user holds {held} keys "
+                    f"(limit {config.MAX_PHYSICAL_KEYS})")
+                return  # request stays queued and is retried
         entry = self._pop_next()
         if entry is None:
             return
         priority, key, reason = entry
         is_buff = priority == PRIORITY_BUFF
-        is_reengage = priority == PRIORITY_REENGAGE
-
-        # Re-engages bypass MAX_PHYSICAL_KEYS but respect lockouts
-        critical = best <= PRIORITY_MANA or is_reengage
-        if not critical or config.DEFER_CRITICAL_ACTIONS:
-            held = int(snapshot.get("physical_keys_held", 0) or 0)
-            if held >= config.MAX_PHYSICAL_KEYS:
-                self._queue.append(entry)
-                return
-
         if not self._can_press(is_buff=is_buff):
             self._queue.append(entry)
             return
-
-        # Per-key cooldown (don't apply to reengage)
+        # Per-key cooldown still applies (prevents heal spam).
         per_key = config.HEALTH.cooldown if reason == "health" else (
             config.MANA.cooldown if reason == "mana" else 0.0)
         with self._lock:
             last = self._last_pressed.get(key)
             if per_key and last is not None and now - last < per_key:
-                self._queue.append(entry)
+                self._queue.append(entry)   # requeue, still on cooldown
                 return
-            if not is_reengage:
-                self._last_pressed[key] = now
-
+            self._last_pressed[key] = now
+        self._last_automated_input = time.perf_counter()
         logger.info(f"Dispatching '{key}' ({reason})")
-        
-        if is_reengage:
-            # GHOST ATTACK PREVENTION: Abort if user physically released the key
-            current_held = self._state.get("physical_keys_held_names", [])
-            if key not in current_held:
-                logger.debug(f"Aborted re-engage for '{key}': user released it.")
-                return
-            self.reengage(key)
-            # Delay next dispatch by 50ms to let the re-engage gap finish
-            self._last_automated_input = time.perf_counter() + 0.05
+        self._record_press(is_buff=is_buff)
+        if is_buff:
+            self.press_buff_async(key)
         else:
-            self._record_press(is_buff=is_buff)
-            if is_buff:
-                self.press_buff_async(key)
-            else:
-                self.press_async(key)
-            self._state.set("last_input_timestamp", time.perf_counter())
-            self._last_automated_input = time.perf_counter()
-            with self._lock:
-                last_actions = list(self._state.get("last_actions", []))
-                last_actions.append({"key": key, "time": time.time()})
-                self._state.set("last_actions", last_actions[-3:])
+            self.press_async(key)
+        self._state.set("last_input_timestamp", time.perf_counter())
+        with self._lock:
+            last_actions = list(self._state.get("last_actions", []))
+            last_actions.append({"key": key, "time": time.time()})
+            self._state.set("last_actions", last_actions[-3:])
 
     def _collect(self, state: SharedState, snapshot: Dict[str, object]) -> None:
         """Turns the current world state into queued press requests.
@@ -737,11 +723,3 @@ class Action:
             self.execute_buff_presses(pending)
         self.decide(snapshot)
         self.manage_looting(looting_active, user_is_acting)
-
-        # === AUTO RE-ENGAGE USER HELD KEYS ===
-        if self._needs_reengage:
-            held_keys = self._state.get("physical_keys_held_names", [])
-            if held_keys:
-                for k in held_keys:
-                    self._enqueue(PRIORITY_REENGAGE, k, "reengage")
-            self._needs_reengage = False

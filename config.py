@@ -334,7 +334,7 @@ ACTION_INTERVAL: float = 0.01  # ~100 Hz
 # --- Action dispatcher ---
 # Minimum time (seconds) between ANY two automated presses. Prevents
 # OS/hardware dropping of simultaneous synthetic keystrokes.
-GLOBAL_RESOLUTION_LIMIT: float = 0.5
+GLOBAL_RESOLUTION_LIMIT: float = 0.01
 # Time (seconds) the game engine is "locked" in a buff cast animation.
 # After the bot presses a buff key, ALL other automated actions (heals,
 # pots, loots, other buffs) are suppressed for this duration because the
@@ -410,7 +410,7 @@ DEFAULT_PRESS_DURATION: float = 0.1
 
 # Gap (seconds) between the release and the re-press, so the game engine
 # registers two distinct key events.
-LOOTING_RETRIGGER_GAP: float = 0.5
+LOOTING_RETRIGGER_GAP: float = 0.25
 
 
 def current_config() -> Config:
