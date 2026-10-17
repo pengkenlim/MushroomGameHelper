@@ -38,38 +38,6 @@ _MODIFIER_ALIASES: Dict[str, str] = {
     "cmd_l": "cmd", "cmd_r": "cmd",
 }
 
-# Thread-safe registry for synthetic key events to prevent SharedState deepcopy race conditions
-_synth_lock = threading.Lock()
-_synth_presses: Dict[str, int] = {}
-_synth_releases: Dict[str, int] = {}
-
-
-def _register_synth_press(name: str) -> None:
-    with _synth_lock:
-        _synth_presses[name] = _synth_presses.get(name, 0) + 1
-
-
-def _register_synth_release(name: str) -> None:
-    with _synth_lock:
-        _synth_releases[name] = _synth_releases.get(name, 0) + 1
-
-
-def _consume_synth_press(name: str) -> bool:
-    with _synth_lock:
-        if _synth_presses.get(name, 0) > 0:
-            _synth_presses[name] -= 1
-            return True
-        return False
-
-
-def _consume_synth_release(name: str) -> bool:
-    with _synth_lock:
-        if _synth_releases.get(name, 0) > 0:
-            _synth_releases[name] -= 1
-            return True
-        return False
-
-
 def normalize_key_name(name: str) -> str:
     """Maps left/right modifier variants onto their base name.
 
@@ -154,7 +122,6 @@ class KeyComboListener:
         self._callback: Callable[[str], None] = callback or self._toggle_state
         self._pressed: Set[str] = set()
         self._physical: Set[str] = set()
-        self._physical_counts: Dict[str, int] = {}
         self._pressed_lock: threading.Lock = threading.Lock()
         self._toggle_lock: threading.Lock = threading.Lock()
         self._listener: Optional[Listener] = None
@@ -179,15 +146,12 @@ class KeyComboListener:
         return {normalize_key_name(str(k).strip().lower()) for k in raw if k}
 
     def _publish_physical_count(self) -> None:
-        """Publishes the count and names of physical action keys held to SharedState."""
         bot_keys = self._bot_key_names()
         ignored = config.IGNORED_PHYSICAL_KEYS
         with self._pressed_lock:
-            held_keys = self._physical - bot_keys - ignored
-            count = len(held_keys)
+            count = len(self._physical - bot_keys - ignored)
         try:
             self._state.set("physical_keys_held", count)
-            self._state.set("physical_keys_held_names", list(held_keys))
         except Exception as exc:
             logger.debug(f"Could not publish physical key state: {exc}")
 
@@ -208,7 +172,6 @@ class KeyComboListener:
         self._toggle_state("rebuff_active")
 
     def on_press(self, key: Union[Key, KeyCode, None]) -> None:
-        """Records a key press and fires the callback on a matching chord."""
         import time
         try:
             self._state.set("last_input_timestamp", time.perf_counter())
@@ -217,12 +180,9 @@ class KeyComboListener:
         name = normalize_key_name(normalize_key(key) or "")
         if not name:
             return
-        if _consume_synth_press(name):
-            return
         fire: Optional[str] = None
         with self._pressed_lock:
             self._pressed.add(name)
-            self._physical_counts[name] = self._physical_counts.get(name, 0) + 1
             self._physical.add(name)
             if {self._looting_key1, self._looting_key2}.issubset(self._pressed):
                 self._pressed.clear()
@@ -242,7 +202,6 @@ class KeyComboListener:
                              exc_info=True)
 
     def on_release(self, key: Union[Key, KeyCode, None]) -> None:
-        """Forgets a released key, respecting overlapping synthetic presses."""
         import time
         try:
             self._state.set("last_input_timestamp", time.perf_counter())
@@ -251,18 +210,9 @@ class KeyComboListener:
         name = normalize_key_name(normalize_key(key) or "")
         if not name:
             return
-        if _consume_synth_release(name):
-            return
         with self._pressed_lock:
             self._pressed.discard(name)
-            self._physical_counts[name] = self._physical_counts.get(name, 0) - 1
-            if self._physical_counts[name] <= 0:
-                self._physical.discard(name)
-                self._physical_counts[name] = 0
-                try:
-                    self._state.set("last_release_timestamp", time.perf_counter())
-                except Exception:
-                    pass
+            self._physical.discard(name)
         self._publish_physical_count()
 
     def start(self) -> None:
@@ -307,7 +257,6 @@ class Action:
         self._queue: List[Tuple[int, str, str]] = []   # (priority, key, reason)
         self._last_automated_input: float = 0.0
         self._last_buff_input: Optional[float] = None
-        self._needs_reengage: bool = False
 
     @staticmethod
     def _resolve(name: str) -> KeyType | MouseButton:
@@ -347,7 +296,6 @@ class Action:
         with self._lock:
             if name not in self._held:
                 key = self._resolve(name)
-                _register_synth_press(name)
                 if isinstance(key, MouseButton):
                     self._mouse.press(button=key, click_count=1)
                 else:
@@ -358,7 +306,6 @@ class Action:
         with self._lock:
             if name in self._held:
                 key = self._resolve(name)
-                _register_synth_release(name)
                 if isinstance(key, MouseButton):
                     self._mouse.release(button=key)
                 else:
@@ -413,33 +360,6 @@ class Action:
         """
         self.press_async(name)
         timer = threading.Timer(config.BUFF_DOUBLE_TAP_GAP, self.press_async, args=(name,))
-        timer.daemon = True
-        timer.start()
-
-    def reengage(self, name: str) -> None:
-        """Resumes a user-held key by sending a quick release and press."""
-        key = self._resolve(name)
-        try:
-            _register_synth_release(name)
-            if isinstance(key, MouseButton):
-                self._mouse.release(button=key)
-            else:
-                self._keyboard.release(key)
-        except Exception:
-            return
-            
-        def press_down():
-            try:
-                _register_synth_press(name)
-                if isinstance(key, MouseButton):
-                    self._mouse.press(button=key, click_count=1)
-                else:
-                    self._keyboard.press(key)
-            except Exception as exc:
-                logger.debug(f"Reengage press failed for {name}: {exc}")
-
-        # 50ms gap is safer for game engines to recognize the state change
-        timer = threading.Timer(0.05, press_down)
         timer.daemon = True
         timer.start()
 
@@ -513,7 +433,6 @@ class Action:
             logger.info(f"Triggered {key} due to low {resource}")
         self._record_press(is_buff=False)
         self.press_async(key)
-        self._needs_reengage = True
 
         with self._lock:
             last_actions = list(self._state.get("last_actions", []))
@@ -581,7 +500,6 @@ class Action:
                     
             self._last_buff_input = now
             self.press_buff_async(keybind)
-            self._needs_reengage = True
             self._buff_lockout_until = now + config.BUFF_CAST_LOCKOUT
             logger.info(f"Cast buff '{keybind}'. Lockout active for {config.BUFF_CAST_LOCKOUT}s.")
             
@@ -720,7 +638,6 @@ class Action:
             self.press_buff_async(key)
         else:
             self.press_async(key)
-        self._needs_reengage = True
         self._state.set("last_input_timestamp", time.perf_counter())
         with self._lock:
             last_actions = list(self._state.get("last_actions", []))
@@ -788,12 +705,3 @@ class Action:
             self.execute_buff_presses(pending)
         self.decide(snapshot)
         self.manage_looting(looting_active, user_is_acting)
-
-        # === AUTO RE-ENGAGE USER HELD KEYS ===
-        if self._needs_reengage:
-            held_keys = self._state.get("physical_keys_held_names", [])
-            if held_keys:
-                logger.debug(f"Re-engaging user held keys: {held_keys}")
-                for k in held_keys:
-                    self.reengage(k)
-            self._needs_reengage = False
