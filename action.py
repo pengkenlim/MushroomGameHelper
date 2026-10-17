@@ -469,6 +469,30 @@ class Action:
         if snapshot.get("mana_low"):
             self.trigger(config.MANA.keybind, config.MANA.cooldown, "mana")
 
+    def _retry_buff(self, name: str) -> None:
+        """Retries a buff double-tap once if it was interrupted by user input.
+        
+        If another buff fired in the meantime and extended the lockout, this 
+        safely hands the retry back to the main queue to prevent collisions.
+        """
+        now = time.perf_counter()
+        
+        # If another buff is currently casting, abort the immediate press and 
+        # push this retry back into the main scheduler queue.
+        if now < self._buff_lockout_until:
+            logger.debug(f"Retry for '{name}' deferred: another buff is currently casting.")
+            self._state.append_buff_press(name)
+            return
+
+        logger.debug(f"Executing retry for buff '{name}'")
+        self.press_async(name)
+        timer2 = threading.Timer(config.BUFF_DOUBLE_TAP_GAP, self.press_async, args=(name,))
+        timer2.daemon = True
+        timer2.start()
+        
+        # Re-engage the buff lockout since this retry acts as a new cast
+        self._buff_lockout_until = time.perf_counter() + config.BUFF_CAST_LOCKOUT
+
     def execute_buff_presses(self, keybinds: List[str]) -> None:
         """Presses scheduled buff keys, respecting the buff cast animation lockout."""
         if not self._state.get("rebuff_active", False):
