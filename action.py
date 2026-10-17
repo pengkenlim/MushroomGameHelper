@@ -123,6 +123,7 @@ class KeyComboListener:
         self._callback: Callable[[str], None] = callback or self._toggle_state
         self._pressed: Set[str] = set()
         self._physical: Set[str] = set()
+        self._physical_counts: Dict[str, int] = {}
         self._pressed_lock: threading.Lock = threading.Lock()
         self._toggle_lock: threading.Lock = threading.Lock()
         self._listener: Optional[Listener] = None
@@ -147,15 +148,17 @@ class KeyComboListener:
         return {normalize_key_name(str(k).strip().lower()) for k in raw if k}
 
     def _publish_physical_count(self) -> None:
-        """Publishes the count of physical action keys held to SharedState."""
+        """Publishes the count and names of physical action keys held to SharedState."""
         bot_keys = self._bot_key_names()
         ignored = config.IGNORED_PHYSICAL_KEYS
         with self._pressed_lock:
-            count = len(self._physical - bot_keys - ignored)
+            held_keys = self._physical - bot_keys - ignored
+            count = len(held_keys)
         try:
             self._state.set("physical_keys_held", count)
+            self._state.set("physical_keys_held_names", list(held_keys))
         except Exception as exc:
-            logger.debug(f"Could not publish physical key count: {exc}")
+            logger.debug(f"Could not publish physical key state: {exc}")
 
     def _on_press(self, key: Union[Key, KeyCode, None]) -> None:
         """Backward-compatible alias for the chord-detection callback."""
@@ -186,6 +189,7 @@ class KeyComboListener:
         fire: Optional[str] = None
         with self._pressed_lock:
             self._pressed.add(name)
+            self._physical_counts[name] = self._physical_counts.get(name, 0) + 1
             self._physical.add(name)
             if {self._looting_key1, self._looting_key2}.issubset(self._pressed):
                 self._pressed.clear()
@@ -205,11 +209,7 @@ class KeyComboListener:
                              exc_info=True)
 
     def on_release(self, key: Union[Key, KeyCode, None]) -> None:
-        """Forgets a released key.
-
-        Args:
-            key: Key reported by ``pynput``.
-        """
+        """Forgets a released key, respecting overlapping synthetic presses."""
         import time
         try:
             self._state.set("last_input_timestamp", time.perf_counter())
@@ -220,7 +220,10 @@ class KeyComboListener:
             return
         with self._pressed_lock:
             self._pressed.discard(name)
-            self._physical.discard(name)
+            self._physical_counts[name] = self._physical_counts.get(name, 0) - 1
+            if self._physical_counts[name] <= 0:
+                self._physical.discard(name)
+                self._physical_counts[name] = 0
         self._publish_physical_count()
 
     def start(self) -> None:
@@ -265,6 +268,7 @@ class Action:
         self._queue: List[Tuple[int, str, str]] = []   # (priority, key, reason)
         self._last_automated_input: float = 0.0
         self._last_buff_input: Optional[float] = None
+        self._needs_reengage: bool = False
 
     @staticmethod
     def _resolve(name: str) -> KeyType | MouseButton:
@@ -451,6 +455,7 @@ class Action:
             logger.info(f"Triggered {key} due to low {resource}")
         self._record_press(is_buff=False)
         self.press_async(key)
+        self._needs_reengage = True
 
         with self._lock:
             last_actions = list(self._state.get("last_actions", []))
@@ -518,6 +523,7 @@ class Action:
                     
             self._last_buff_input = now
             self.press_buff_async(keybind)
+            self._needs_reengage = True
             self._buff_lockout_until = now + config.BUFF_CAST_LOCKOUT
             logger.info(f"Cast buff '{keybind}'. Lockout active for {config.BUFF_CAST_LOCKOUT}s.")
             
@@ -656,6 +662,7 @@ class Action:
             self.press_buff_async(key)
         else:
             self.press_async(key)
+        self._needs_reengage = True
         self._state.set("last_input_timestamp", time.perf_counter())
         with self._lock:
             last_actions = list(self._state.get("last_actions", []))
@@ -723,3 +730,12 @@ class Action:
             self.execute_buff_presses(pending)
         self.decide(snapshot)
         self.manage_looting(looting_active, user_is_acting)
+
+        # === AUTO RE-ENGAGE USER HELD KEYS ===
+        if self._needs_reengage:
+            held_keys = self._state.get("physical_keys_held_names", [])
+            if held_keys:
+                logger.debug(f"Re-engaging user held keys: {held_keys}")
+                for k in held_keys:
+                    self.press_async(k)
+            self._needs_reengage = False
