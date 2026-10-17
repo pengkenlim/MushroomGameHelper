@@ -90,7 +90,7 @@ class Config:
     looting_toggle_1: str = "ctrl"
     looting_toggle_2: str = "l"
     looting_keybind: str = ""
-    looting_retrigger_interval: float = 5.0
+    looting_retrigger_interval: float = 2.0
 
 
 @dataclass
@@ -341,7 +341,7 @@ GLOBAL_RESOLUTION_LIMIT: float = 0.01
 # game will ignore them.
 BUFF_CAST_LOCKOUT: float = 0.8
 # Time (seconds) between the two rapid presses of a buff key to interrupt held keys.
-BUFF_DOUBLE_TAP_GAP: float = 0.1
+BUFF_DOUBLE_TAP_GAP: float = 0.35
 # Backward-compatible alias used by earlier action timing checks.
 RESOLUTION_LIMIT: float = GLOBAL_RESOLUTION_LIMIT
 # Minimum seconds between ANY two automated key presses. Prevents the game
@@ -403,7 +403,7 @@ KEYBINDS: Dict[str, str] = {
 SCHEDULER_INTERVAL: float = 0.05
 
 # Minimum seconds between two automated buff key presses (global input gap).
-BUFF_INPUT_COOLDOWN: float = 0.7
+BUFF_INPUT_COOLDOWN: float = 0.5
 
 # How long (seconds) a tap-style key is held.
 DEFAULT_PRESS_DURATION: float = 0.1
