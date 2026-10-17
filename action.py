@@ -134,6 +134,22 @@ class KeyComboListener:
             new_state = self._state.toggle(flag_name)
             logger.info(f"!!! TOGGLE DETECTED: {flag_name} is now {new_state} !!!")
 
+    def _consume_synth_press(self, name: str) -> bool:
+        counts = self._state.get("synth_presses", {}) or {}
+        if counts.get(name, 0) > 0:
+            counts[name] -= 1
+            self._state.set("synth_presses", counts)
+            return True
+        return False
+
+    def _consume_synth_release(self, name: str) -> bool:
+        counts = self._state.get("synth_releases", {}) or {}
+        if counts.get(name, 0) > 0:
+            counts[name] -= 1
+            self._state.set("synth_releases", counts)
+            return True
+        return False
+
     @staticmethod
     def _bot_key_names() -> Set[str]:
         """Returns the normalized set of keys the bot itself presses."""
@@ -186,7 +202,7 @@ class KeyComboListener:
         name = normalize_key_name(normalize_key(key) or "")
         if not name:
             return
-        if name in self._state.get("bot_reengaging_keys", []):
+        if self._consume_synth_press(name):
             return
         fire: Optional[str] = None
         with self._pressed_lock:
@@ -220,7 +236,7 @@ class KeyComboListener:
         name = normalize_key_name(normalize_key(key) or "")
         if not name:
             return
-        if name in self._state.get("bot_reengaging_keys", []):
+        if self._consume_synth_release(name):
             return
         with self._pressed_lock:
             self._pressed.discard(name)
@@ -321,6 +337,7 @@ class Action:
         with self._lock:
             if name not in self._held:
                 key = self._resolve(name)
+                self._register_synth_press(name)
                 if isinstance(key, MouseButton):
                     self._mouse.press(button=key, click_count=1)
                 else:
@@ -336,6 +353,7 @@ class Action:
         with self._lock:
             if name in self._held:
                 key = self._resolve(name)
+                self._register_synth_release(name)
                 if isinstance(key, MouseButton):
                     self._mouse.release(button=key)
                 else:
@@ -397,12 +415,7 @@ class Action:
         """Resumes a user-held key by sending a quick release and press."""
         key = self._resolve(name)
         try:
-            # Mark as bot re-engaging so the listener ignores the synthetic events
-            current = self._state.get("bot_reengaging_keys", [])
-            if name not in current:
-                current.append(name)
-            self._state.set("bot_reengaging_keys", current)
-
+            self._register_synth_release(name)
             if isinstance(key, MouseButton):
                 self._mouse.release(button=key)
             else:
@@ -412,17 +425,13 @@ class Action:
             
         def press_down():
             try:
+                self._register_synth_press(name)
                 if isinstance(key, MouseButton):
                     self._mouse.press(button=key, click_count=1)
                 else:
                     self._keyboard.press(key)
             except Exception as exc:
                 logger.debug(f"Reengage press failed for {name}: {exc}")
-            finally:
-                current = self._state.get("bot_reengaging_keys", [])
-                if name in current:
-                    current.remove(name)
-                self._state.set("bot_reengaging_keys", current)
 
         timer = threading.Timer(0.02, press_down)
         timer.daemon = True
@@ -456,6 +465,16 @@ class Action:
             self._buff_lockout_until = now + config.BUFF_CAST_LOCKOUT
             logger.debug(
                 f"Buff lockout active until {self._buff_lockout_until:.2f}")
+
+    def _register_synth_press(self, name: str) -> None:
+        counts = self._state.get("synth_presses", {}) or {}
+        counts[name] = counts.get(name, 0) + 1
+        self._state.set("synth_presses", counts)
+
+    def _register_synth_release(self, name: str) -> None:
+        counts = self._state.get("synth_releases", {}) or {}
+        counts[name] = counts.get(name, 0) + 1
+        self._state.set("synth_releases", counts)
 
     def trigger(self, key: str, cooldown: float, resource: str = "") -> bool:
         """Presses ``key`` unless cooldown or resolution limit blocks it.
@@ -788,3 +807,4 @@ class Action:
                 for k in held_keys:
                     self.reengage(k)
             self._needs_reengage = False
+aa
