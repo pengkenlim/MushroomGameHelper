@@ -186,6 +186,8 @@ class KeyComboListener:
         name = normalize_key_name(normalize_key(key) or "")
         if not name:
             return
+        if name in self._state.get("bot_reengaging_keys", []):
+            return
         fire: Optional[str] = None
         with self._pressed_lock:
             self._pressed.add(name)
@@ -218,12 +220,18 @@ class KeyComboListener:
         name = normalize_key_name(normalize_key(key) or "")
         if not name:
             return
+        if name in self._state.get("bot_reengaging_keys", []):
+            return
         with self._pressed_lock:
             self._pressed.discard(name)
             self._physical_counts[name] = self._physical_counts.get(name, 0) - 1
             if self._physical_counts[name] <= 0:
                 self._physical.discard(name)
                 self._physical_counts[name] = 0
+                try:
+                    self._state.set("last_release_timestamp", time.perf_counter())
+                except Exception:
+                    pass
         self._publish_physical_count()
 
     def start(self) -> None:
@@ -382,6 +390,41 @@ class Action:
         """
         self.press_async(name)
         timer = threading.Timer(config.BUFF_DOUBLE_TAP_GAP, self.press_async, args=(name,))
+        timer.daemon = True
+        timer.start()
+
+    def reengage(self, name: str) -> None:
+        """Resumes a user-held key by sending a quick release and press."""
+        key = self._resolve(name)
+        try:
+            # Mark as bot re-engaging so the listener ignores the synthetic events
+            current = self._state.get("bot_reengaging_keys", [])
+            if name not in current:
+                current.append(name)
+            self._state.set("bot_reengaging_keys", current)
+
+            if isinstance(key, MouseButton):
+                self._mouse.release(button=key)
+            else:
+                self._keyboard.release(key)
+        except Exception:
+            return
+            
+        def press_down():
+            try:
+                if isinstance(key, MouseButton):
+                    self._mouse.press(button=key, click_count=1)
+                else:
+                    self._keyboard.press(key)
+            except Exception as exc:
+                logger.debug(f"Reengage press failed for {name}: {exc}")
+            finally:
+                current = self._state.get("bot_reengaging_keys", [])
+                if name in current:
+                    current.remove(name)
+                self._state.set("bot_reengaging_keys", current)
+
+        timer = threading.Timer(0.02, press_down)
         timer.daemon = True
         timer.start()
 
@@ -733,9 +776,15 @@ class Action:
 
         # === AUTO RE-ENGAGE USER HELD KEYS ===
         if self._needs_reengage:
+            last_release = self._state.get("last_release_timestamp", 0.0)
+            # If the user released any key in the last 200ms, abort re-engage to prevent ghost attacks
+            if time.perf_counter() - last_release < 0.20:
+                self._needs_reengage = False
+                return
+
             held_keys = self._state.get("physical_keys_held_names", [])
             if held_keys:
                 logger.debug(f"Re-engaging user held keys: {held_keys}")
                 for k in held_keys:
-                    self.press_async(k)
+                    self.reengage(k)
             self._needs_reengage = False
