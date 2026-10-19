@@ -83,13 +83,13 @@ class Config:
         )
     )
     looting: LootingConfig = field(default_factory=LootingConfig)
-    repot_toggle_1: str = "ctrl"
-    repot_toggle_2: str = "r"
-    rebuff_toggle_1: str = "ctrl"
-    rebuff_toggle_2: str = "b"
-    looting_toggle_1: str = "ctrl"
-    looting_toggle_2: str = "l"
-    looting_keybind: str = ""
+    repot_toggle_1: str = "0"
+    repot_toggle_2: str = "7"
+    rebuff_toggle_1: str = "0"
+    rebuff_toggle_2: str = "8"
+    looting_toggle_1: str = "0"
+    looting_toggle_2: str = "9"
+    looting_keybind: str = "z"
     looting_retrigger_interval: float = 2.0
 
 

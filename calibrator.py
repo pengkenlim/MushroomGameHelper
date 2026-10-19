@@ -89,6 +89,7 @@ class CalibrationSession:
     _drag_start: Optional[Tuple[int, int]] = None
     _drag_now: Optional[Tuple[int, int]] = None
     _mouse_pos: Optional[Tuple[int, int]] = None
+    scale: float = 1.0
 
     @property
     def bar(self) -> str:
@@ -124,6 +125,10 @@ class CalibrationSession:
         """
         if self.finished:
             return
+        # Map scaled display coordinates back to original image coordinates
+        if self.scale != 1.0:
+            x = int(x / self.scale)
+            y = int(y / self.scale)
         if event == cv2.EVENT_MOUSEMOVE:
             self._mouse_pos = (x, y)
         if self.step is Step.DRAW_ROI:
@@ -303,6 +308,13 @@ def run_window(session: CalibrationSession) -> bool:
     """
     cv2.namedWindow(WINDOW, cv2.WINDOW_AUTOSIZE)
     cv2.setMouseCallback(WINDOW, session.on_mouse)
+    # Calculate scale to fit screen (prevent title bar from pushing window off-screen)
+    max_w, max_h = 1280, 720
+    h, w = session.image.shape[:2]
+    if w > max_w or h > max_h:
+        session.scale = min(max_w / w, max_h / h)
+    else:
+        session.scale = 1.0
     
     # Force the OpenCV window to the foreground on Windows to ensure it captures keyboard input
     try:
@@ -317,7 +329,14 @@ def run_window(session: CalibrationSession) -> bool:
 
     try:
         while not session.finished:
-            cv2.imshow(WINDOW, session.render())
+            canvas = session.render()
+            if session.scale < 1.0:
+                display_h = int(canvas.shape[0] * session.scale)
+                display_w = int(canvas.shape[1] * session.scale)
+                display_canvas = cv2.resize(canvas, (display_w, display_h))
+                cv2.imshow(WINDOW, display_canvas)
+            else:
+                cv2.imshow(WINDOW, canvas)
             key = cv2.waitKey(20)
             
             if key != -1:

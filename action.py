@@ -187,14 +187,40 @@ class KeyComboListener:
         with self._pressed_lock:
             self._pressed.add(name)
             self._physical.add(name)
-            if {self._looting_key1, self._looting_key2}.issubset(self._pressed):
-                self._pressed.clear()
+            # Looting
+            if self._looting_key1 and self._looting_key2:
+                if {self._looting_key1, self._looting_key2}.issubset(self._pressed):
+                    self._pressed.clear()
+                    fire = "looting_active"
+            elif self._looting_key1 and self._looting_key1 in self._pressed:
+                self._pressed.discard(self._looting_key1)
                 fire = "looting_active"
-            elif {self._repot_key1, self._repot_key2}.issubset(self._pressed):
-                self._pressed.clear()
+            elif self._looting_key2 and self._looting_key2 in self._pressed:
+                self._pressed.discard(self._looting_key2)
+                fire = "looting_active"
+                
+            # Repot
+            if not fire and self._repot_key1 and self._repot_key2:
+                if {self._repot_key1, self._repot_key2}.issubset(self._pressed):
+                    self._pressed.clear()
+                    fire = "repot_active"
+            elif not fire and self._repot_key1 and self._repot_key1 in self._pressed:
+                self._pressed.discard(self._repot_key1)
                 fire = "repot_active"
-            elif {self._rebuff_key1, self._rebuff_key2}.issubset(self._pressed):
-                self._pressed.clear()
+            elif not fire and self._repot_key2 and self._repot_key2 in self._pressed:
+                self._pressed.discard(self._repot_key2)
+                fire = "repot_active"
+                
+            # Rebuff
+            if not fire and self._rebuff_key1 and self._rebuff_key2:
+                if {self._rebuff_key1, self._rebuff_key2}.issubset(self._pressed):
+                    self._pressed.clear()
+                    fire = "rebuff_active"
+            elif not fire and self._rebuff_key1 and self._rebuff_key1 in self._pressed:
+                self._pressed.discard(self._rebuff_key1)
+                fire = "rebuff_active"
+            elif not fire and self._rebuff_key2 and self._rebuff_key2 in self._pressed:
+                self._pressed.discard(self._rebuff_key2)
                 fire = "rebuff_active"
         self._publish_physical_count()
         if fire is not None:

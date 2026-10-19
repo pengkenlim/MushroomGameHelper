@@ -66,12 +66,9 @@ TOOLTIPS: Dict[str, str] = {
     "mp_keybind": ("Key pressed to restore mana. Type a key name or use "
                    "Capture to record a key or mouse button."),
     "mp_cooldown": "Minimum seconds between automated mana presses.",
-    "repot_toggle": ("One of the two keys pressed together to switch "
-                     "Re-poting ON/OFF while the bot runs."),
-    "rebuff_toggle": ("One of the two keys pressed together to switch "
-                      "Re-buffing ON/OFF while the bot runs."),
-    "looting_toggle": ("One of the two keys pressed together to switch "
-                       "Autolooting ON/OFF while the bot runs."),
+    "repot_toggle": ("Keys to switch Re-poting ON/OFF. Leave one box empty for a single-key toggle."),
+    "rebuff_toggle": ("Keys to switch Re-buffing ON/OFF. Leave one box empty for a single-key toggle."),
+    "looting_toggle": ("Keys to switch Autolooting ON/OFF. Leave one box empty for a single-key toggle."),
     "looting_keybind": ("Key held down while Autolooting is ON. Leave empty "
                         "to disable looting."),
     "capture": ("Click, then press any key or mouse button to fill the "
@@ -685,13 +682,15 @@ class App:
         for col in columns:
             self.tree.heading(col, text=col)
             self.tree.column(col, width=90, anchor="w")
-        self.tree.grid(row=0, column=0, columnspan=3, sticky="nsew")
+        self.tree.grid(row=0, column=0, columnspan=4, sticky="nsew")
         ttk.Button(self.buffs_tab, text="Add",
-                   command=self.add_buff_dialog).grid(row=1, column=0, pady=5)
+                   command=self.add_buff_dialog).grid(row=1, column=0, pady=5, padx=2)
+        ttk.Button(self.buffs_tab, text="Edit",
+                   command=self.edit_buff_dialog).grid(row=1, column=1, pady=5, padx=2)
         ttk.Button(self.buffs_tab, text="Toggle",
-                   command=self.toggle_buff).grid(row=1, column=1, pady=5)
+                   command=self.toggle_buff).grid(row=1, column=2, pady=5, padx=2)
         ttk.Button(self.buffs_tab, text="Delete",
-                   command=self.delete_buff).grid(row=1, column=2, pady=5)
+                   command=self.delete_buff).grid(row=1, column=3, pady=5, padx=2)
         self.refresh_buffs()
 
     def on_tab_changed(self, _event: object = None) -> None:
@@ -778,6 +777,76 @@ class App:
 
         ttk.Button(dialog, text="Save", command=submit).grid(
             row=4, column=0, columnspan=2, pady=5)
+
+    def edit_buff_dialog(self) -> None:
+        """Opens a dialog to edit the selected schedule."""
+        name = self._selected_name()
+        if name is None:
+            messagebox.showinfo("Edit Buff", "Please select a buff from the list to edit.")
+            return
+            
+        schedules = config.load_schedules()
+        original = next((s for s in schedules if s.name == name), None)
+        if original is None:
+            return
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"Edit Buff: {name}")
+        dialog.transient(self.root)
+        vars_: Dict[str, tk.StringVar] = {}
+        
+        fields = [
+            ("Name", original.name),
+            ("Keybind", original.keybind),
+            ("Interval (s)", str(original.interval_seconds))
+        ]
+        
+        for row, (label, default) in enumerate(fields):
+            ttk.Label(dialog, text=label).grid(row=row, column=0, sticky="w", padx=5, pady=2)
+            var = tk.StringVar(value=default)
+            ttk.Entry(dialog, textvariable=var, width=20).grid(row=row, column=1, padx=5, pady=2)
+            if label == "Keybind":
+                ttk.Button(dialog, text="Capture", width=8,
+                           command=lambda v=var: self.do_capture(v)).grid(row=row, column=2, padx=5, pady=2)
+            vars_[label] = var
+            
+        error = tk.StringVar()
+        ttk.Label(dialog, textvariable=error, foreground="red").grid(
+            row=3, column=0, columnspan=3)
+
+        original_name = original.name
+
+        def submit() -> None:
+            try:
+                new_name = vars_["Name"].get().strip()
+                new_keybind = vars_["Keybind"].get().strip()
+                new_interval = float(vars_["Interval (s)"].get())
+                
+                if not new_name:
+                    raise ValueError("name cannot be empty")
+                if not new_keybind:
+                    raise ValueError("keybind cannot be empty")
+                if not 0.0 < new_interval < float("inf"):
+                    raise ValueError("interval must be a positive number")
+                    
+                schedules = config.load_schedules()
+                if new_name != original_name and any(s.name == new_name for s in schedules):
+                    raise ValueError("name already exists")
+                    
+                for s in schedules:
+                    if s.name == original_name:
+                        s.name = new_name
+                        s.keybind = new_keybind
+                        s.interval_seconds = new_interval
+                        break
+                        
+                self._persist_buffs(schedules)
+                dialog.destroy()
+            except ValueError as exc:
+                error.set(str(exc))
+
+        ttk.Button(dialog, text="Save Changes", command=submit).grid(
+            row=4, column=0, columnspan=3, pady=5)
 
     def do_capture(self, target_var: tk.StringVar) -> None:
         """Opens a non-blocking capture dialog for one key or mouse input.
