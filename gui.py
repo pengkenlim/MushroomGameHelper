@@ -10,7 +10,7 @@ import webbrowser
 from functools import partial
 from pathlib import Path
 from tkinter import font as tkfont, messagebox, ttk
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import config
 from config import BuffSchedule
@@ -931,7 +931,18 @@ class App:
                 self._report_error(
                     f"Key capture failed: {result['error']}", result["error"])
             elif result["val"] is not None:
+                old_val = target_var.get()
                 target_var.set(result["val"])
+                
+                # Test the new key against all other keys immediately
+                error_msg = self._validate_all_keybinds()
+                if error_msg:
+                    target_var.set(old_val) # Revert to the old key
+                    messagebox.showerror(
+                        "Invalid Keybind", 
+                        f"Cannot bind this key:\n\n{error_msg}\n\nPlease choose a different key."
+                    )
+                # If no error, the new value stays set and the dynamic UI updates automatically
             else:
                 self.status.set("Key capture timed out: no input detected.")
 
@@ -989,6 +1000,56 @@ class App:
         self.status.set(status)
         messagebox.showerror(ERROR_TITLE, str(detail) or status)
 
+    def _validate_all_keybinds(self) -> Optional[str]:
+        """Validates all keybinds against the Golden Rules. Returns an error string or None."""
+        hp_key = self.hp_keybind_var.get().strip()
+        mp_key = self.mp_keybind_var.get().strip()
+        loot_key = self.looting_keybind_var.get().strip()
+        action_keys = [k for k in [hp_key, mp_key, loot_key] if k]
+        
+        if len(action_keys) != len(set(action_keys)):
+            return "In-game keybinds (HP, MP, Loot) must be unique from each other."
+
+        toggle_vars = [
+            ("Repot", self.repot_toggle_1_var.get().strip(), self.repot_toggle_2_var.get().strip()),
+            ("Rebuff", self.rebuff_toggle_1_var.get().strip(), self.rebuff_toggle_2_var.get().strip()),
+            ("Looting", self.looting_toggle_1_var.get().strip(), self.looting_toggle_2_var.get().strip()),
+            ("Start/Stop", self.start_stop_toggle_1_var.get().strip(), self.start_stop_toggle_2_var.get().strip()),
+        ]
+        
+        all_toggle_keys_flat = []
+        dual_toggles = []
+        single_toggles = []
+        
+        for name, k1, k2 in toggle_vars:
+            if not k1 and not k2:
+                continue
+            if k1 and k2 and k1 != k2:
+                all_toggle_keys_flat.extend([k1, k2])
+                dual_toggles.append(frozenset([k1, k2]))
+            else:
+                single_key = k1 or k2
+                all_toggle_keys_flat.append(single_key)
+                single_toggles.append(single_key)
+
+        if set(action_keys).intersection(set(all_toggle_keys_flat)):
+            return "In-game keybinds cannot be used as Toggle Keys."
+
+        if len(single_toggles) != len(set(single_toggles)):
+            return "Single Toggle Keys must be unique."
+            
+        dual_keys_flat = []
+        for pair in dual_toggles:
+            dual_keys_flat.extend(list(pair))
+            
+        if set(single_toggles).intersection(set(dual_keys_flat)):
+            return "Single Toggle Keys cannot be part of Dual Toggle Keys."
+
+        if len(dual_toggles) != len(set(dual_toggles)):
+            return "Dual Toggle Key combinations must be unique."
+
+        return None
+
     def apply_settings(self) -> bool:
         """Validates the entries and writes them into ``config``."""
         parsed: Dict[str, float] = {}
@@ -1010,6 +1071,12 @@ class App:
                 parsed[attr] = value
         except ValueError as exc:
             self.status.set(f"Invalid settings: {exc}")
+            return False
+
+        # Validate keybinds
+        validation_error = self._validate_all_keybinds()
+        if validation_error:
+            self.status.set(f"Invalid settings: {validation_error}")
             return False
             
         # Apply numeric/capture settings
