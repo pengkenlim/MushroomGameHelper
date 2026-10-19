@@ -114,7 +114,7 @@ class OSDWindow:
                 ("autolooting", "Autolooting: OFF"),
                 ("repot", "Re-poting: OFF"),
                 ("rebuff", "Re-buffing: OFF"),
-                ("start_stop", "Start/Stop: Unbound"),
+                ("emergency_stop", "Emergency Stop: Unbound"),
                 ("last_actions", "Recent Actions: None"),
                 ("buffs", "Active Buffs: []"),
                 ("buff_countdowns", "Buff countdowns: None"),
@@ -204,11 +204,11 @@ class OSDWindow:
             self.vars["rebuff"].set(format_toggle("Re-buffing", bool(snap.get("rebuff_active", False)), config.REBUFF_TOGGLE_1, config.REBUFF_TOGGLE_2))
             k1, k2 = config.START_STOP_TOGGLE_1, config.START_STOP_TOGGLE_2
             if k1 and k2 and k1 != k2:
-                self.vars["start_stop"].set(f"Start/Stop: [{k1} + {k2}]")
+                self.vars["emergency_stop"].set(f"Emergency Stop: [{k1} + {k2}]")
             elif k1 or k2:
-                self.vars["start_stop"].set(f"Start/Stop: [{k1 or k2}]")
+                self.vars["emergency_stop"].set(f"Emergency Stop: [{k1 or k2}]")
             else:
-                self.vars["start_stop"].set("Start/Stop: Unbound")
+                self.vars["emergency_stop"].set("Emergency Stop: Unbound")
             self.vars["last_actions"].set(format_last_actions(snap.get("last_actions")))
             self.vars["buffs"].set(format_buffs(snap.get("schedule_status")))
             self.vars["buff_countdowns"].set(format_buff_countdowns(snap.get("schedule_status")))

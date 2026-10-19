@@ -69,7 +69,7 @@ TOOLTIPS: Dict[str, str] = {
     "repot_toggle": ("Toggle Keys to switch Re-poting ON/OFF. Capture the same key in both boxes for a single-key toggle."),
     "rebuff_toggle": ("Toggle Keys to switch Re-buffing ON/OFF. Capture the same key in both boxes for a single-key toggle."),
     "looting_toggle": ("Toggle Keys to switch Autolooting ON/OFF. Capture the same key in both boxes for a single-key toggle."),
-    "start_stop_toggle": ("Toggle Keys to Start or Stop the bot globally. Useful for emergency stops or pausing to type in chat."),
+    "start_stop_toggle": ("Toggle Keys to instantly Emergency Stop the bot. Useful for emergency halts or pausing to type in chat. Note: This cannot restart the bot once stopped."),
     "looting_keybind": ("Key held down while Autolooting is ON. Leave empty "
                         "to disable looting."),
     "capture": ("Click, then press any key or mouse button to fill the "
@@ -559,7 +559,7 @@ class App:
         add_toggle_row(1, "Looting Toggle Key 1", self.looting_toggle_1_var, "Looting Toggle Key 2", self.looting_toggle_2_var, self.looting_toggle_result_var, "looting_toggle")
         add_toggle_row(2, "Repot Toggle Key 1", self.repot_toggle_1_var, "Repot Toggle Key 2", self.repot_toggle_2_var, self.repot_result_var, "repot_toggle")
         add_toggle_row(3, "Rebuff Toggle Key 1", self.rebuff_toggle_1_var, "Rebuff Toggle Key 2", self.rebuff_toggle_2_var, self.rebuff_result_var, "rebuff_toggle")
-        add_toggle_row(4, "Start/Stop Toggle Key 1", self.start_stop_toggle_1_var, "Start/Stop Toggle Key 2", self.start_stop_toggle_2_var, self.start_stop_result_var, "start_stop_toggle")
+        add_toggle_row(4, "Emergency Stop Key 1", self.start_stop_toggle_1_var, "Emergency Stop Key 2", self.start_stop_toggle_2_var, self.start_stop_result_var, "start_stop_toggle")
         
         self._update_toggle_results()
         for var in (self.repot_toggle_1_var, self.repot_toggle_2_var,
@@ -1253,13 +1253,14 @@ class App:
                 else:
                     self.start()
             counts = {k: len(v) for k, v in snap.get("matches", {}).items()}
+            # Emergency Stop formatting
             k1, k2 = config.START_STOP_TOGGLE_1, config.START_STOP_TOGGLE_2
             if k1 and k2 and k1 != k2:
-                start_stop_str = f"Start/Stop: [{k1} + {k2}]"
+                emergency_stop_str = f"Emergency Stop: [{k1} + {k2}]"
             elif k1 or k2:
-                start_stop_str = f"Start/Stop: [{k1 or k2}]"
+                emergency_stop_str = f"Emergency Stop: [{k1 or k2}]"
             else:
-                start_stop_str = "Start/Stop: Unbound"
+                emergency_stop_str = "Emergency Stop: Unbound"
 
             self.info.set(
                 f"{format_percent('Health', snap.get('health_percent'))}\n"
@@ -1268,7 +1269,7 @@ class App:
                 f"{format_toggle('Autolooting', bool(snap.get('looting_active', False)), config.LOOTING_TOGGLE_1, config.LOOTING_TOGGLE_2)}\n"
                 f"{format_toggle('Re-poting', bool(snap.get('repot_active', False)), config.REPOT_TOGGLE_1, config.REPOT_TOGGLE_2)}\n"
                 f"{format_toggle('Re-buffing', bool(snap.get('rebuff_active', False)), config.REBUFF_TOGGLE_1, config.REBUFF_TOGGLE_2)}\n"
-                f"{start_stop_str}\n"
+                f"{emergency_stop_str}\n"
                 f"{format_last_actions(snap.get('last_actions'))}\n"
                 f"{format_buffs(snap.get('schedule_status'))}\n"
                 f"{format_buff_countdowns(snap.get('schedule_status'))}"
