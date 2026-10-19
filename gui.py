@@ -66,9 +66,10 @@ TOOLTIPS: Dict[str, str] = {
     "mp_keybind": ("Key pressed to restore mana. Type a key name or use "
                    "Capture to record a key or mouse button."),
     "mp_cooldown": "Minimum seconds between automated mana presses.",
-    "repot_toggle": ("Keys to switch Re-poting ON/OFF. Leave one box empty for a single-key toggle."),
-    "rebuff_toggle": ("Keys to switch Re-buffing ON/OFF. Leave one box empty for a single-key toggle."),
-    "looting_toggle": ("Keys to switch Autolooting ON/OFF. Leave one box empty for a single-key toggle."),
+    "repot_toggle": ("Toggle Keys to switch Re-poting ON/OFF. Capture the same key in both boxes for a single-key toggle."),
+    "rebuff_toggle": ("Toggle Keys to switch Re-buffing ON/OFF. Capture the same key in both boxes for a single-key toggle."),
+    "looting_toggle": ("Toggle Keys to switch Autolooting ON/OFF. Capture the same key in both boxes for a single-key toggle."),
+    "start_stop_toggle": ("Toggle Keys to Start or Stop the bot globally. Useful for emergency stops or pausing to type in chat."),
     "looting_keybind": ("Key held down while Autolooting is ON. Leave empty "
                         "to disable looting."),
     "capture": ("Click, then press any key or mouse button to fill the "
@@ -483,11 +484,14 @@ class App:
         self.rebuff_toggle_2_var = tk.StringVar(value=config.REBUFF_TOGGLE_2)
         self.looting_toggle_1_var = tk.StringVar(value=config.LOOTING_TOGGLE_1)
         self.looting_toggle_2_var = tk.StringVar(value=config.LOOTING_TOGGLE_2)
+        self.start_stop_toggle_1_var = tk.StringVar(value=config.START_STOP_TOGGLE_1)
+        self.start_stop_toggle_2_var = tk.StringVar(value=config.START_STOP_TOGGLE_2)
         self.looting_keybind_var = tk.StringVar(value=config.LOOTING_KEYBIND)
         
         self.repot_result_var = tk.StringVar()
         self.rebuff_result_var = tk.StringVar()
         self.looting_toggle_result_var = tk.StringVar()
+        self.start_stop_result_var = tk.StringVar()
         
         # Looting Keybind (Single entry)
         self._add_field(group, "Looting Keybind", self.looting_keybind_var, 0, 0, "looting_keybind", capture=True)
@@ -506,14 +510,16 @@ class App:
             ttk.Label(group, textvariable=result_var, foreground="#D35400", font=("Segoe UI", 9, "bold")).grid(row=row_idx, column=6, sticky="w", padx=(0, 5), pady=2)
             self._add_tip(tooltip_key, e1, e2)
 
-        add_toggle_row(1, "Repot Keybind 1", self.repot_toggle_1_var, "Repot Keybind 2", self.repot_toggle_2_var, self.repot_result_var, "repot_toggle")
-        add_toggle_row(2, "Rebuff Keybind 1", self.rebuff_toggle_1_var, "Rebuff Keybind 2", self.rebuff_toggle_2_var, self.rebuff_result_var, "rebuff_toggle")
-        add_toggle_row(3, "Looting Keybind 1", self.looting_toggle_1_var, "Looting Keybind 2", self.looting_toggle_2_var, self.looting_toggle_result_var, "looting_toggle")
+        add_toggle_row(1, "Repot Toggle Key 1", self.repot_toggle_1_var, "Repot Toggle Key 2", self.repot_toggle_2_var, self.repot_result_var, "repot_toggle")
+        add_toggle_row(2, "Rebuff Toggle Key 1", self.rebuff_toggle_1_var, "Rebuff Toggle Key 2", self.rebuff_toggle_2_var, self.rebuff_result_var, "rebuff_toggle")
+        add_toggle_row(3, "Looting Toggle Key 1", self.looting_toggle_1_var, "Looting Toggle Key 2", self.looting_toggle_2_var, self.looting_toggle_result_var, "looting_toggle")
+        add_toggle_row(4, "Start/Stop Toggle Key 1", self.start_stop_toggle_1_var, "Start/Stop Toggle Key 2", self.start_stop_toggle_2_var, self.start_stop_result_var, "start_stop_toggle")
         
         self._update_toggle_results()
         for var in (self.repot_toggle_1_var, self.repot_toggle_2_var,
                     self.rebuff_toggle_1_var, self.rebuff_toggle_2_var,
-                    self.looting_toggle_1_var, self.looting_toggle_2_var):
+                    self.looting_toggle_1_var, self.looting_toggle_2_var,
+                    self.start_stop_toggle_1_var, self.start_stop_toggle_2_var):
             var.trace_add("write", lambda *args: self._update_toggle_results())
 
     def _update_toggle_results(self) -> None:
@@ -530,6 +536,7 @@ class App:
         self.repot_result_var.set(format_result(self.repot_toggle_1_var, self.repot_toggle_2_var))
         self.rebuff_result_var.set(format_result(self.rebuff_toggle_1_var, self.rebuff_toggle_2_var))
         self.looting_toggle_result_var.set(format_result(self.looting_toggle_1_var, self.looting_toggle_2_var))
+        self.start_stop_result_var.set(format_result(self.start_stop_toggle_1_var, self.start_stop_toggle_2_var))
 
     def _build_controls(self, frame: ttk.Frame, row: int) -> None:
         """Builds Start/Stop and the status lines below the settings groups.
@@ -1023,6 +1030,8 @@ class App:
         config.REBUFF_TOGGLE_2 = self.rebuff_toggle_2_var.get().strip()
         config.LOOTING_TOGGLE_1 = self.looting_toggle_1_var.get().strip()
         config.LOOTING_TOGGLE_2 = self.looting_toggle_2_var.get().strip()
+        config.START_STOP_TOGGLE_1 = self.start_stop_toggle_1_var.get().strip()
+        config.START_STOP_TOGGLE_2 = self.start_stop_toggle_2_var.get().strip()
         config.LOOTING_KEYBIND = self.looting_keybind_var.get().strip()
 
         return True
@@ -1119,6 +1128,12 @@ class App:
             self.status_label.configure(
                 foreground=self.status_color(self.status.get()))
             snap = self.runner.state.snapshot()
+            if snap.get("hotkey_start_stop"):
+                self.runner.state.set("hotkey_start_stop", False)
+                if self.runner.running:
+                    self.stop()
+                else:
+                    self.start()
             counts = {k: len(v) for k, v in snap.get("matches", {}).items()}
             self.info.set(
                 f"Targets visible: {snap.get('targets_visible')}\n"

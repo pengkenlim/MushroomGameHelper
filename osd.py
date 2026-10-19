@@ -105,6 +105,7 @@ class OSDWindow:
                 ("autolooting", "Autolooting: OFF (Toggle: ctrl+l)"),
                 ("repot", "Re-poting: OFF (Toggle: ctrl+r)"),
                 ("rebuff", "Re-buffing: OFF (Toggle: ctrl+b)"),
+                ("start_stop", "Start/Stop: Unbound"),
                 ("last_actions", "Recent Actions: None"),
                 ("buffs", "Active Buffs: []"),
                 ("buff_countdowns", "Buff countdowns: None"),
@@ -192,6 +193,13 @@ class OSDWindow:
             self.vars["autolooting"].set(format_toggle("Autolooting", bool(snap.get("looting_active", False)), config.LOOTING_TOGGLE_1, config.LOOTING_TOGGLE_2))
             self.vars["repot"].set(format_toggle("Re-poting", bool(snap.get("repot_active", False)), config.REPOT_TOGGLE_1, config.REPOT_TOGGLE_2))
             self.vars["rebuff"].set(format_toggle("Re-buffing", bool(snap.get("rebuff_active", False)), config.REBUFF_TOGGLE_1, config.REBUFF_TOGGLE_2))
+            k1, k2 = config.START_STOP_TOGGLE_1, config.START_STOP_TOGGLE_2
+            if k1 and k2 and k1 != k2:
+                self.vars["start_stop"].set(f"Start/Stop: [{k1} + {k2}]")
+            elif k1:
+                self.vars["start_stop"].set(f"Start/Stop: [{k1}]")
+            else:
+                self.vars["start_stop"].set("Start/Stop: Unbound")
             self.vars["last_actions"].set(format_last_actions(snap.get("last_actions")))
             self.vars["buffs"].set(format_buffs(snap.get("schedule_status")))
             self.vars["buff_countdowns"].set(format_buff_countdowns(snap.get("schedule_status")))

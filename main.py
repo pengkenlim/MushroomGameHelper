@@ -96,7 +96,11 @@ class Runner:
         scheduler = self._scheduler = Scheduler()
         state.clear_buff_presses()
         state.set("looting_active", False)
-        listener = self._combo_listener = KeyComboListener(state)
+        listener = self._combo_listener = KeyComboListener(
+            state,
+            start_stop_key1=config.START_STOP_TOGGLE_1,
+            start_stop_key2=config.START_STOP_TOGGLE_2,
+        )
         listener.start()
 
         def vision_step() -> None:

@@ -89,6 +89,8 @@ class Config:
     rebuff_toggle_2: str = "8"
     looting_toggle_1: str = "0"
     looting_toggle_2: str = "9"
+    start_stop_toggle_1: str = "0"
+    start_stop_toggle_2: str = "6"
     looting_keybind: str = "z"
     looting_retrigger_interval: float = 2.0
 
@@ -250,6 +252,8 @@ def load_config(path: Path = CALIBRATION_PATH) -> Config:
             rebuff_toggle_2=str(data.get("rebuff_toggle_2", default.rebuff_toggle_2)),
             looting_toggle_1=str(data.get("looting_toggle_1", default.looting_toggle_1)),
             looting_toggle_2=str(data.get("looting_toggle_2", default.looting_toggle_2)),
+            start_stop_toggle_1=str(data.get("start_stop_toggle_1", default.start_stop_toggle_1)),
+            start_stop_toggle_2=str(data.get("start_stop_toggle_2", default.start_stop_toggle_2)),
             looting_keybind=str(data.get("looting_keybind", default.looting_keybind)),
             looting_retrigger_interval=float(
                 data.get("looting_retrigger_interval",
@@ -389,6 +393,8 @@ REBUFF_TOGGLE_1: str = _loaded.rebuff_toggle_1
 REBUFF_TOGGLE_2: str = _loaded.rebuff_toggle_2
 LOOTING_TOGGLE_1: str = _loaded.looting_toggle_1
 LOOTING_TOGGLE_2: str = _loaded.looting_toggle_2
+START_STOP_TOGGLE_1: str = _loaded.start_stop_toggle_1
+START_STOP_TOGGLE_2: str = _loaded.start_stop_toggle_2
 LOOTING_KEYBIND: str = _loaded.looting_keybind
 LOOTING_RETRIGGER_INTERVAL: float = _loaded.looting_retrigger_interval
 
@@ -438,6 +444,8 @@ def current_config() -> Config:
         rebuff_toggle_2=REBUFF_TOGGLE_2,
         looting_toggle_1=LOOTING_TOGGLE_1,
         looting_toggle_2=LOOTING_TOGGLE_2,
+        start_stop_toggle_1=START_STOP_TOGGLE_1,
+        start_stop_toggle_2=START_STOP_TOGGLE_2,
         looting_keybind=LOOTING_KEYBIND,
         looting_retrigger_interval=LOOTING_RETRIGGER_INTERVAL,
     )

@@ -104,6 +104,8 @@ class KeyComboListener:
         repot_key2: Optional[str] = None,
         rebuff_key1: Optional[str] = None,
         rebuff_key2: Optional[str] = None,
+        start_stop_key1: Optional[str] = None,
+        start_stop_key2: Optional[str] = None,
         callback: Optional[Callable[[str], None]] = None,
     ) -> None:
         """Creates the listener (not started until :meth:`start`)."""
@@ -120,6 +122,10 @@ class KeyComboListener:
             (rebuff_key1 or config.REBUFF_TOGGLE_1).strip().lower())
         self._rebuff_key2: str = normalize_key_name(
             (rebuff_key2 or config.REBUFF_TOGGLE_2).strip().lower())
+        self._start_stop_key1: str = normalize_key_name(
+            (start_stop_key1 or config.START_STOP_TOGGLE_1).strip().lower())
+        self._start_stop_key2: str = normalize_key_name(
+            (start_stop_key2 or config.START_STOP_TOGGLE_2).strip().lower())
         self._callback: Callable[[str], None] = callback or self._toggle_state
         self._pressed: Set[str] = set()
         self._physical: Set[str] = set()
@@ -222,6 +228,21 @@ class KeyComboListener:
             elif not fire and self._rebuff_key2 and self._rebuff_key2 in self._pressed:
                 self._pressed.discard(self._rebuff_key2)
                 fire = "rebuff_active"
+
+            # Start/Stop
+            if not fire and self._start_stop_key1 and self._start_stop_key2 and self._start_stop_key1 != self._start_stop_key2:
+                if {self._start_stop_key1, self._start_stop_key2}.issubset(self._pressed):
+                    self._pressed.clear()
+                    self._state.set("hotkey_start_stop", True)
+                    logger.info("!!! Start/Stop Hotkey Triggered !!!")
+            elif not fire and self._start_stop_key1 and self._start_stop_key1 in self._pressed:
+                self._pressed.discard(self._start_stop_key1)
+                self._state.set("hotkey_start_stop", True)
+                logger.info("!!! Start/Stop Hotkey Triggered !!!")
+            elif not fire and self._start_stop_key2 and self._start_stop_key2 in self._pressed:
+                self._pressed.discard(self._start_stop_key2)
+                self._state.set("hotkey_start_stop", True)
+                logger.info("!!! Start/Stop Hotkey Triggered !!!")
         self._publish_physical_count()
         if fire is not None:
             try:
