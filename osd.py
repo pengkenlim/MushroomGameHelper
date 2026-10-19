@@ -30,8 +30,17 @@ def format_buffs(schedule_status: Optional[List[Dict[str, Any]]]) -> str:
     return f"Active Buffs: [{', '.join(items)}]"
 
 def format_toggle(label: str, enabled: bool, key1: str, key2: str) -> str:
+    """Returns a human-readable on/off status line for a toggle state."""
     state = "ON" if enabled else "OFF"
-    return f"{label}: [{state}] (Toggle: {key1}+{key2})"
+    if key1 and key2 and key1 != key2:
+        keys_str = f"{key1} + {key2}"
+    elif key1:
+        keys_str = key1
+    elif key2:
+        keys_str = key2
+    else:
+        keys_str = "Unbound"
+    return f"{label}: [{state}] (Toggle: {keys_str})"
 
 def format_last_actions(last_actions: Optional[List[Dict[str, Any]]]) -> str:
     items: List[str] = []
@@ -102,9 +111,9 @@ class OSDWindow:
             name: tk.StringVar(value=text) for name, text in (
                 ("hp", "HP: --%"), ("mp", "MP: --%"),
                 ("inputs", "Your keys held: 0"),
-                ("autolooting", "Autolooting: OFF (Toggle: ctrl+l)"),
-                ("repot", "Re-poting: OFF (Toggle: ctrl+r)"),
-                ("rebuff", "Re-buffing: OFF (Toggle: ctrl+b)"),
+                ("autolooting", "Autolooting: OFF"),
+                ("repot", "Re-poting: OFF"),
+                ("rebuff", "Re-buffing: OFF"),
                 ("start_stop", "Start/Stop: Unbound"),
                 ("last_actions", "Recent Actions: None"),
                 ("buffs", "Active Buffs: []"),
@@ -196,8 +205,8 @@ class OSDWindow:
             k1, k2 = config.START_STOP_TOGGLE_1, config.START_STOP_TOGGLE_2
             if k1 and k2 and k1 != k2:
                 self.vars["start_stop"].set(f"Start/Stop: [{k1} + {k2}]")
-            elif k1:
-                self.vars["start_stop"].set(f"Start/Stop: [{k1}]")
+            elif k1 or k2:
+                self.vars["start_stop"].set(f"Start/Stop: [{k1 or k2}]")
             else:
                 self.vars["start_stop"].set("Start/Stop: Unbound")
             self.vars["last_actions"].set(format_last_actions(snap.get("last_actions")))

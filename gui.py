@@ -10,7 +10,7 @@ import webbrowser
 from functools import partial
 from pathlib import Path
 from tkinter import font as tkfont, messagebox, ttk
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import config
 from config import BuffSchedule
@@ -176,6 +176,52 @@ class ToolTip:
             y = widget.winfo_rooty() - height - self.OFFSET_Y
         x = min(x, widget.winfo_screenwidth() - width)
         return max(0, x), max(0, y)
+
+
+def format_percent(label: str, value: Optional[float]) -> str:
+    return f"{label}: --%" if value is None else f"{label}: {value:.0f}%"
+
+
+def format_buffs(schedule_status: Optional[List[Dict[str, Any]]]) -> str:
+    items = [f"{s['name']} [{s['keybind']}]" for s in schedule_status or []]
+    return f"Active Buffs: [{', '.join(items)}]" if items else "Active Buffs: []"
+
+
+def format_toggle(label: str, enabled: bool, key1: str, key2: str) -> str:
+    state = "ON" if enabled else "OFF"
+    if key1 and key2 and key1 != key2:
+        keys_str = f"{key1} + {key2}"
+    elif key1:
+        keys_str = key1
+    elif key2:
+        keys_str = key2
+    else:
+        keys_str = "Unbound"
+    return f"{label}: [{state}] (Toggle: {keys_str})"
+
+
+def format_last_actions(last_actions: Optional[List[Dict[str, Any]]]) -> str:
+    items: List[str] = []
+    for entry in (last_actions or [])[-3:]:
+        key = str(entry.get("key", "?"))
+        timestamp = entry.get("time")
+        if isinstance(timestamp, (int, float)):
+            stamp = time.strftime("%H:%M:%S", time.localtime(timestamp))
+        else:
+            stamp = "--:--:--"
+        items.append(f"{stamp} - Pressed '{key}'")
+    return "Recent Actions: " + (" | ".join(items) if items else "None")
+
+
+def format_buff_countdowns(schedule_status: Optional[List[Dict[str, Any]]]) -> str:
+    if not schedule_status:
+        return "Buff countdowns: None"
+    now = time.perf_counter()
+    lines = []
+    for item in schedule_status:
+        remaining = max(0.0, float(item.get("next_due", 0.0)) - now)
+        lines.append(f"{item.get('name', 'Buff')} in {remaining:.1f}s")
+    return "Buff countdowns: " + (" | ".join(lines) if lines else "None")
 
 
 class App:
@@ -510,9 +556,9 @@ class App:
             ttk.Label(group, textvariable=result_var, foreground="#D35400", font=("Segoe UI", 9, "bold")).grid(row=row_idx, column=6, sticky="w", padx=(0, 5), pady=2)
             self._add_tip(tooltip_key, e1, e2)
 
-        add_toggle_row(1, "Repot Toggle Key 1", self.repot_toggle_1_var, "Repot Toggle Key 2", self.repot_toggle_2_var, self.repot_result_var, "repot_toggle")
-        add_toggle_row(2, "Rebuff Toggle Key 1", self.rebuff_toggle_1_var, "Rebuff Toggle Key 2", self.rebuff_toggle_2_var, self.rebuff_result_var, "rebuff_toggle")
-        add_toggle_row(3, "Looting Toggle Key 1", self.looting_toggle_1_var, "Looting Toggle Key 2", self.looting_toggle_2_var, self.looting_toggle_result_var, "looting_toggle")
+        add_toggle_row(1, "Looting Toggle Key 1", self.looting_toggle_1_var, "Looting Toggle Key 2", self.looting_toggle_2_var, self.looting_toggle_result_var, "looting_toggle")
+        add_toggle_row(2, "Repot Toggle Key 1", self.repot_toggle_1_var, "Repot Toggle Key 2", self.repot_toggle_2_var, self.repot_result_var, "repot_toggle")
+        add_toggle_row(3, "Rebuff Toggle Key 1", self.rebuff_toggle_1_var, "Rebuff Toggle Key 2", self.rebuff_toggle_2_var, self.rebuff_result_var, "rebuff_toggle")
         add_toggle_row(4, "Start/Stop Toggle Key 1", self.start_stop_toggle_1_var, "Start/Stop Toggle Key 2", self.start_stop_toggle_2_var, self.start_stop_result_var, "start_stop_toggle")
         
         self._update_toggle_results()
@@ -1001,52 +1047,57 @@ class App:
         messagebox.showerror(ERROR_TITLE, str(detail) or status)
 
     def _validate_all_keybinds(self) -> Optional[str]:
-        """Validates all keybinds against the Golden Rules. Returns an error string or None."""
-        hp_key = self.hp_keybind_var.get().strip()
-        mp_key = self.mp_keybind_var.get().strip()
-        loot_key = self.looting_keybind_var.get().strip()
-        action_keys = [k for k in [hp_key, mp_key, loot_key] if k]
+        """Validates keybinds using Set math to prevent self-overlap false positives."""
+        hp = self.hp_keybind_var.get().strip()
+        mp = self.mp_keybind_var.get().strip()
+        loot_hold = self.looting_keybind_var.get().strip()
         
-        if len(action_keys) != len(set(action_keys)):
+        action_keys_list = [k for k in [hp, mp, loot_hold] if k]
+        
+        # Rule 1a: Action keys must be unique from each other
+        if len(action_keys_list) != len(set(action_keys_list)):
             return "In-game keybinds (HP, MP, Loot) must be unique from each other."
 
-        toggle_vars = [
-            ("Repot", self.repot_toggle_1_var.get().strip(), self.repot_toggle_2_var.get().strip()),
-            ("Rebuff", self.rebuff_toggle_1_var.get().strip(), self.rebuff_toggle_2_var.get().strip()),
-            ("Looting", self.looting_toggle_1_var.get().strip(), self.looting_toggle_2_var.get().strip()),
-            ("Start/Stop", self.start_stop_toggle_1_var.get().strip(), self.start_stop_toggle_2_var.get().strip()),
+        toggles = [
+            (self.repot_toggle_1_var.get().strip(), self.repot_toggle_2_var.get().strip()),
+            (self.rebuff_toggle_1_var.get().strip(), self.rebuff_toggle_2_var.get().strip()),
+            (self.looting_toggle_1_var.get().strip(), self.looting_toggle_2_var.get().strip()),
+            (self.start_stop_toggle_1_var.get().strip(), self.start_stop_toggle_2_var.get().strip()),
         ]
         
-        all_toggle_keys_flat = []
-        dual_toggles = []
-        single_toggles = []
+        single_list = []
+        dual_list = []
+        dual_components = set()
         
-        for name, k1, k2 in toggle_vars:
+        for k1, k2 in toggles:
             if not k1 and not k2:
                 continue
+            
             if k1 and k2 and k1 != k2:
-                all_toggle_keys_flat.extend([k1, k2])
-                dual_toggles.append(frozenset([k1, k2]))
+                dual_list.append(frozenset([k1, k2]))
+                dual_components.add(k1)
+                dual_components.add(k2)
             else:
-                single_key = k1 or k2
-                all_toggle_keys_flat.append(single_key)
-                single_toggles.append(single_key)
+                single_list.append(k1 if k1 else k2)
 
-        if set(action_keys).intersection(set(all_toggle_keys_flat)):
-            return "In-game keybinds cannot be used as Toggle Keys."
+        # Rule 2: Single-key toggles must be unique from each other
+        if len(single_list) != len(set(single_list)):
+            return "Single-key toggles cannot be the same as each other."
 
-        if len(single_toggles) != len(set(single_toggles)):
-            return "Single Toggle Keys must be unique."
-            
-        dual_keys_flat = []
-        for pair in dual_toggles:
-            dual_keys_flat.extend(list(pair))
-            
-        if set(single_toggles).intersection(set(dual_keys_flat)):
-            return "Single Toggle Keys cannot be part of Dual Toggle Keys."
+        # Rule 3: Dual-key toggles cannot be the exact same pair (frozenset handles reversed order)
+        if len(dual_list) != len(set(dual_list)):
+            return "Dual-key toggles cannot be the exact same combination."
 
-        if len(dual_toggles) != len(set(dual_toggles)):
-            return "Dual Toggle Key combinations must be unique."
+        single_set = set(single_list)
+
+        # Rule 1b: Action keys cannot overlap with ANY toggle keys
+        all_toggle_keys = single_set.union(dual_components)
+        if set(action_keys_list).intersection(all_toggle_keys):
+            return "In-game keybinds cannot overlap with any Toggle Keys."
+
+        # Rule 4: Single-key toggles cannot be part of ANY dual-key toggle
+        if single_set.intersection(dual_components):
+            return "A single-key toggle cannot be part of a dual-key toggle."
 
         return None
 
@@ -1202,59 +1253,32 @@ class App:
                 else:
                     self.start()
             counts = {k: len(v) for k, v in snap.get("matches", {}).items()}
+            k1, k2 = config.START_STOP_TOGGLE_1, config.START_STOP_TOGGLE_2
+            if k1 and k2 and k1 != k2:
+                start_stop_str = f"Start/Stop: [{k1} + {k2}]"
+            elif k1 or k2:
+                start_stop_str = f"Start/Stop: [{k1 or k2}]"
+            else:
+                start_stop_str = "Start/Stop: Unbound"
+
             self.info.set(
-                f"Targets visible: {snap.get('targets_visible')}\n"
-                f"Health: {snap.get('health_percent', 0.0):.0f}% "
-                f"(low: {snap.get('health_low')})\n"
-                f"Mana: {snap.get('mana_percent', 0.0):.0f}% "
-                f"(low: {snap.get('mana_low')})\n"
-                f"Matches: {counts or '-'}\n" + self.schedule_text(snap)
-                + "\n" + self.looting_status_text(snap))
+                f"{format_percent('Health', snap.get('health_percent'))}\n"
+                f"{format_percent('Mana', snap.get('mana_percent'))}\n"
+                f"Your keys held: {snap.get('physical_keys_held', 0)}\n"
+                f"{format_toggle('Autolooting', bool(snap.get('looting_active', False)), config.LOOTING_TOGGLE_1, config.LOOTING_TOGGLE_2)}\n"
+                f"{format_toggle('Re-poting', bool(snap.get('repot_active', False)), config.REPOT_TOGGLE_1, config.REPOT_TOGGLE_2)}\n"
+                f"{format_toggle('Re-buffing', bool(snap.get('rebuff_active', False)), config.REBUFF_TOGGLE_1, config.REBUFF_TOGGLE_2)}\n"
+                f"{start_stop_str}\n"
+                f"{format_last_actions(snap.get('last_actions'))}\n"
+                f"{format_buffs(snap.get('schedule_status'))}\n"
+                f"{format_buff_countdowns(snap.get('schedule_status'))}"
+            )
         except (tk.TclError, ValueError, TypeError, AttributeError) as exc:
             if not self._closing:
                 self.info.set(f"Status unavailable: {exc}")
         finally:
             if not self._closing:
                 self._refresh_id = self.root.after(REFRESH_MS, self.refresh)
-
-    @staticmethod
-    def schedule_text(snap: Dict[str, object]) -> str:
-        """Formats the active buff schedules with next-press countdowns.
-
-        Args:
-            snap: Shared-state snapshot containing ``schedule_status``.
-
-        Returns:
-            Multi-line text for the status panel.
-        """
-        status: List[Dict[str, object]] = snap.get(
-            "schedule_status") or []  # type: ignore[assignment]
-        if not status:
-            return "Buffs: -"
-        now = time.perf_counter()
-        lines = ["Buffs:"]
-        for item in status:
-            remaining = max(0.0, float(item["next_due"]) - now)  # type: ignore[arg-type]
-            lines.append(
-                f"  {item['name']} [{item['keybind']}] "
-                f"every {float(item['interval_seconds']):g}s "  # type: ignore[arg-type]
-                f"- next in {remaining:.1f}s")
-        return "\n".join(lines)
-
-    @staticmethod
-    def looting_status_text(snap: Dict[str, object]) -> str:
-        """Formats the looting hold-and-retrigger status.
-
-        Args:
-            snap: Shared-state snapshot containing ``looting_active``.
-
-        Returns:
-            ``"Looting: ACTIVE"`` or an "Inactive" hint naming the toggle chord.
-        """
-        if snap.get("looting_active"):
-            return "Looting: ACTIVE"
-        return (f"Looting: Inactive (Press {config.LOOTING_TOGGLE_1}"
-                f"+{config.LOOTING_TOGGLE_2} to toggle)")
 
     def show_exit_popup(self) -> tk.Toplevel:
         """Shows a high-converting thank-you popup with a link to the GitHub repository."""
