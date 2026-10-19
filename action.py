@@ -188,7 +188,7 @@ class KeyComboListener:
             self._pressed.add(name)
             self._physical.add(name)
             # Looting
-            if self._looting_key1 and self._looting_key2:
+            if self._looting_key1 and self._looting_key2 and self._looting_key1 != self._looting_key2:
                 if {self._looting_key1, self._looting_key2}.issubset(self._pressed):
                     self._pressed.clear()
                     fire = "looting_active"
@@ -200,7 +200,7 @@ class KeyComboListener:
                 fire = "looting_active"
                 
             # Repot
-            if not fire and self._repot_key1 and self._repot_key2:
+            if not fire and self._repot_key1 and self._repot_key2 and self._repot_key1 != self._repot_key2:
                 if {self._repot_key1, self._repot_key2}.issubset(self._pressed):
                     self._pressed.clear()
                     fire = "repot_active"
@@ -212,7 +212,7 @@ class KeyComboListener:
                 fire = "repot_active"
                 
             # Rebuff
-            if not fire and self._rebuff_key1 and self._rebuff_key2:
+            if not fire and self._rebuff_key1 and self._rebuff_key2 and self._rebuff_key1 != self._rebuff_key2:
                 if {self._rebuff_key1, self._rebuff_key2}.issubset(self._pressed):
                     self._pressed.clear()
                     fire = "rebuff_active"

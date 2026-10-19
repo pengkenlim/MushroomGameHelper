@@ -362,7 +362,7 @@ class App:
         caption = ttk.Label(group, text=label)
         caption.grid(row=row, column=column, sticky="w", padx=(lead, 5),
                      pady=2)
-        entry = ttk.Entry(group, textvariable=variable, width=12)
+        entry = ttk.Entry(group, textvariable=variable, width=12, state="readonly" if capture else "normal")
         entry.grid(row=row, column=column + 1, sticky="ew", padx=(0, 5),
                    pady=2)
         self._add_tip(tip, caption, entry)
@@ -473,37 +473,63 @@ class App:
                         "mp_cooldown")
 
     def _build_action_group(self, parent: ttk.Frame, row: int) -> None:
-        """Builds the "Action Toggles & Keybinds" group.
-
-        Args:
-            parent: The dashboard frame.
-            row: Grid row of the group inside ``parent``.
-        """
+        """Builds the Action Toggles & Keybinds group."""
         group = self.action_group = self._new_group(
             parent, "Action Toggles & Keybinds", row)
+            
         self.repot_toggle_1_var = tk.StringVar(value=config.REPOT_TOGGLE_1)
         self.repot_toggle_2_var = tk.StringVar(value=config.REPOT_TOGGLE_2)
         self.rebuff_toggle_1_var = tk.StringVar(value=config.REBUFF_TOGGLE_1)
         self.rebuff_toggle_2_var = tk.StringVar(value=config.REBUFF_TOGGLE_2)
-        self.looting_toggle_1_var = tk.StringVar(
-            value=config.LOOTING_TOGGLE_1)
-        self.looting_toggle_2_var = tk.StringVar(
-            value=config.LOOTING_TOGGLE_2)
+        self.looting_toggle_1_var = tk.StringVar(value=config.LOOTING_TOGGLE_1)
+        self.looting_toggle_2_var = tk.StringVar(value=config.LOOTING_TOGGLE_2)
         self.looting_keybind_var = tk.StringVar(value=config.LOOTING_KEYBIND)
-        self._add_field(group, "Repot Toggle 1", self.repot_toggle_1_var, 0, 0,
-                        "repot_toggle", capture=True)
-        self._add_field(group, "Repot Toggle 2", self.repot_toggle_2_var, 0, 3,
-                        "repot_toggle", capture=True)
-        self._add_field(group, "Rebuff Toggle 1", self.rebuff_toggle_1_var, 1,
-                        0, "rebuff_toggle", capture=True)
-        self._add_field(group, "Rebuff Toggle 2", self.rebuff_toggle_2_var, 1,
-                        3, "rebuff_toggle", capture=True)
-        self._add_field(group, "Looting Toggle 1", self.looting_toggle_1_var,
-                        2, 0, "looting_toggle", capture=True)
-        self._add_field(group, "Looting Toggle 2", self.looting_toggle_2_var,
-                        2, 3, "looting_toggle", capture=True)
-        self._add_field(group, "Looting Keybind", self.looting_keybind_var, 3,
-                        0, "looting_keybind", capture=True)
+        
+        self.repot_result_var = tk.StringVar()
+        self.rebuff_result_var = tk.StringVar()
+        self.looting_toggle_result_var = tk.StringVar()
+        
+        # Looting Keybind (Single entry)
+        self._add_field(group, "Looting Keybind", self.looting_keybind_var, 0, 0, "looting_keybind", capture=True)
+        
+        def add_toggle_row(row_idx, label1, var1, label2, var2, result_var, tooltip_key):
+            ttk.Label(group, text=label1).grid(row=row_idx, column=0, sticky="w", padx=(0, 5), pady=2)
+            e1 = ttk.Entry(group, textvariable=var1, width=8, state="readonly")
+            e1.grid(row=row_idx, column=1, sticky="ew", padx=(0, 2), pady=2)
+            ttk.Button(group, text="Capture", width=7, command=partial(self.do_capture, var1)).grid(row=row_idx, column=2, padx=(0, 10), pady=2)
+            
+            ttk.Label(group, text=label2).grid(row=row_idx, column=3, sticky="w", padx=(0, 5), pady=2)
+            e2 = ttk.Entry(group, textvariable=var2, width=8, state="readonly")
+            e2.grid(row=row_idx, column=4, sticky="ew", padx=(0, 2), pady=2)
+            ttk.Button(group, text="Capture", width=7, command=partial(self.do_capture, var2)).grid(row=row_idx, column=5, padx=(0, 10), pady=2)
+            
+            ttk.Label(group, textvariable=result_var, foreground="#D35400", font=("Segoe UI", 9, "bold")).grid(row=row_idx, column=6, sticky="w", padx=(0, 5), pady=2)
+            self._add_tip(tooltip_key, e1, e2)
+
+        add_toggle_row(1, "Repot Keybind 1", self.repot_toggle_1_var, "Repot Keybind 2", self.repot_toggle_2_var, self.repot_result_var, "repot_toggle")
+        add_toggle_row(2, "Rebuff Keybind 1", self.rebuff_toggle_1_var, "Rebuff Keybind 2", self.rebuff_toggle_2_var, self.rebuff_result_var, "rebuff_toggle")
+        add_toggle_row(3, "Looting Keybind 1", self.looting_toggle_1_var, "Looting Keybind 2", self.looting_toggle_2_var, self.looting_toggle_result_var, "looting_toggle")
+        
+        self._update_toggle_results()
+        for var in (self.repot_toggle_1_var, self.repot_toggle_2_var,
+                    self.rebuff_toggle_1_var, self.rebuff_toggle_2_var,
+                    self.looting_toggle_1_var, self.looting_toggle_2_var):
+            var.trace_add("write", lambda *args: self._update_toggle_results())
+
+    def _update_toggle_results(self) -> None:
+        """Updates the dynamic text showing the combined toggle keybinds."""
+        def format_result(v1, v2):
+            k1, k2 = v1.get().strip(), v2.get().strip()
+            if k1 and k2 and k1 != k2:
+                return f"Bound to {k1} + {k2}"
+            elif k1:
+                return f"Bound to {k1}"
+            else:
+                return "Unbound"
+                
+        self.repot_result_var.set(format_result(self.repot_toggle_1_var, self.repot_toggle_2_var))
+        self.rebuff_result_var.set(format_result(self.rebuff_toggle_1_var, self.rebuff_toggle_2_var))
+        self.looting_toggle_result_var.set(format_result(self.looting_toggle_1_var, self.looting_toggle_2_var))
 
     def _build_controls(self, frame: ttk.Frame, row: int) -> None:
         """Builds Start/Stop and the status lines below the settings groups.
