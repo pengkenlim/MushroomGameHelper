@@ -327,6 +327,23 @@ def run_window(session: CalibrationSession) -> bool:
     except Exception:
         pass
 
+    # Apply custom icon to the OpenCV calibrator window (Windows only)
+    try:
+        if sys.platform == "win32" and config.ICON_PATH.exists():
+            import ctypes
+            hwnd = ctypes.windll.user32.FindWindowW(None, WINDOW)
+            if hwnd:
+                IMAGE_ICON = 1
+                LR_LOADFROMFILE = 0x00000010
+                hicon = ctypes.windll.user32.LoadImageW(
+                    0, str(config.ICON_PATH), IMAGE_ICON, 0, 0, LR_LOADFROMFILE)
+                if hicon:
+                    WM_SETICON = 0x0080
+                    ctypes.windll.user32.SendMessageW(hwnd, WM_SETICON, 0, hicon)
+                    ctypes.windll.user32.SendMessageW(hwnd, WM_SETICON, 1, hicon)
+    except Exception:
+        pass
+
     try:
         while not session.finished:
             canvas = session.render()

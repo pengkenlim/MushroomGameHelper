@@ -264,6 +264,12 @@ class App:
         self.tooltips: List[ToolTip] = []
         self._bold_font = tkfont.Font(family="Segoe UI", size=10, weight="bold")
         root.title("MushroomGameHelper")
+        # Apply custom icon to the root window and all child dialogs
+        if config.ICON_PATH.exists():
+            try:
+                self.root.iconbitmap(default=str(config.ICON_PATH))
+            except tk.TclError:
+                pass
         root.protocol("WM_DELETE_WINDOW", self.on_close)
         root.columnconfigure(0, weight=1)
         root.rowconfigure(0, weight=1)

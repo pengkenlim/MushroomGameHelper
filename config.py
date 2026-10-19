@@ -2,12 +2,25 @@
 
 import json
 import os
+import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Set, Tuple
 
 CALIBRATION_PATH: Path = Path(__file__).resolve().parent / "calibration.json"
 SCHEDULES_PATH: Path = Path(__file__).resolve().parent / "schedules.json"
+
+
+def _resolve_asset(*parts: str) -> Path:
+    """Resolves a bundled asset path for both source runs and frozen builds."""
+    if getattr(sys, "frozen", False):
+        base = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+    else:
+        base = Path(__file__).resolve().parent
+    return base.joinpath(*parts)
+
+
+ICON_PATH: Path = _resolve_asset("visual_assets", "green_blob.ico")
 
 HSV = Tuple[int, int, int]
 Roi = Tuple[int, int, int, int]  # (x, y, width, height) within the capture

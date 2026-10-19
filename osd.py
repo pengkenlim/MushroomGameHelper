@@ -103,6 +103,12 @@ class OSDWindow:
         self._closed: bool = False
         self.root: tk.Tk = root or tk.Tk()
         self.root.overrideredirect(True)
+        # Apply custom icon to the OSD window
+        if config.ICON_PATH.exists():
+            try:
+                self.root.iconbitmap(default=str(config.ICON_PATH))
+            except tk.TclError:
+                pass
         self.root.attributes("-topmost", True)
         self.root.attributes("-alpha", ALPHA)
         self.root.configure(bg=BG_COLOR)
