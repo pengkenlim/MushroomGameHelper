@@ -23,12 +23,6 @@ SPECIAL_KEYS: Dict[str, object] = {
     "media_volume_mute": Key.media_volume_mute,
 }
 
-# Dispatcher priorities. Lower number = higher priority = fired first.
-PRIORITY_HEAL: int = 0
-PRIORITY_MANA: int = 1
-PRIORITY_BUFF: int = 2
-PRIORITY_LOOT: int = 3
-
 # Left/right modifier variants are folded into one logical name so that a
 # chord such as ``ctrl+l`` matches either physical Ctrl key.
 _MODIFIER_ALIASES: Dict[str, str] = {
@@ -70,26 +64,6 @@ def normalize_key(key: Union[Key, KeyCode, None]) -> Optional[str]:
         # With Ctrl held some platforms report control codes (Ctrl+L -> \x0c).
         char = chr(ord(char) + 96)
     return char.lower()
-
-
-def bot_key_names() -> Set[str]:
-    """Returns the normalized set of keys the bot itself presses.
-
-    pynput's Listener also observes the bot's own synthetic key events, so
-    they must be excluded when counting what the user is physically holding.
-
-    Returns:
-        Normalized key names owned by the automation.
-    """
-    raw = [
-        config.HEALTH.keybind, config.MANA.keybind, config.LOOTING_KEYBIND,
-        config.LOOTING_TOGGLE_1, config.LOOTING_TOGGLE_2,
-        config.REPOT_TOGGLE_1, config.REPOT_TOGGLE_2,
-        config.REBUFF_TOGGLE_1, config.REBUFF_TOGGLE_2,
-    ]
-    for schedule in config.load_schedules():
-        raw.append(schedule.keybind)
-    return {normalize_key_name(str(k).strip().lower()) for k in raw if k}
 
 
 class KeyComboListener:
@@ -308,8 +282,6 @@ class Action:
         # (enforces BUFF_CAST_LOCKOUT)
         self._buff_lockout_until: float = 0.0
         self._state: SharedState = state or SharedState()
-        # Dispatcher state
-        self._queue: List[Tuple[int, str, str]] = []   # (priority, key, reason)
         self._last_automated_input: float = 0.0
         self._last_buff_input: Optional[float] = None
 
@@ -597,152 +569,6 @@ class Action:
             self.release(keybind)
         else:
             self.hold(keybind)
-
-    def _enqueue(self, priority: int, key: str, reason: str) -> None:
-        """Adds a press request to the dispatcher queue.
-
-        Requests are idempotent: an identical (priority, key, reason) triple
-        already waiting is not added again, so the queue cannot grow without
-        bound while the action thread is busy.
-
-        Args:
-            priority: Dispatcher priority (lower fires first).
-            key: Keybind to press.
-            reason: Human-readable cause, used for logging and dedup.
-        """
-        if not key:
-            return
-        with self._lock:
-            entry = (priority, key, reason)
-            if entry in self._queue:
-                return
-            self._queue.append(entry)
-            if len(self._queue) > config.ACTION_QUEUE_MAX:
-                # Drop the lowest-priority (highest number) overflow entries.
-                self._queue.sort(key=lambda item: item[0])
-                del self._queue[config.ACTION_QUEUE_MAX:]
-
-    def _pop_next(self) -> Optional[Tuple[int, str, str]]:
-        """Removes and returns the highest-priority queued request.
-
-        Returns:
-            The ``(priority, key, reason)`` tuple, or None if the queue is empty.
-        """
-        with self._lock:
-            if not self._queue:
-                return None
-            self._queue.sort(key=lambda item: item[0])
-            return self._queue.pop(0)
-
-    def _peek_priority(self) -> Optional[int]:
-        """Returns the priority of the next queued request without removing it.
-
-        Returns:
-            The best (lowest) priority currently queued, or None if empty.
-        """
-        with self._lock:
-            if not self._queue:
-                return None
-            return min(item[0] for item in self._queue)
-
-    def _dispatch(self, snapshot: Dict[str, object]) -> None:
-        """Fires at most one queued action per cycle.
-
-        Enforces a global minimum gap between any two automated presses so the
-        game engine's limited input buffer is never given two simultaneous
-        key events. Low-priority actions (buff, loot) are deferred — not
-        dropped — while the user is physically holding many keys, because
-        engines like MapleStory Worlds cancel synthetic input once their input
-        slots are full. Critical actions (heal, mana) fire regardless unless
-        ``config.DEFER_CRITICAL_ACTIONS`` is True.
-
-        Args:
-            snapshot: Current shared-state snapshot.
-        """
-        best = self._peek_priority()
-        if best is None:
-            return
-        now = time.perf_counter()
-        last_input = self._state.get("last_input_timestamp", 0.0)
-        if now - last_input < config.GLOBAL_RESOLUTION_LIMIT:
-            logger.debug(
-                f"Deferring action: resolution limit active "
-                f"({config.GLOBAL_RESOLUTION_LIMIT - (now - last_input):.2f}s remaining)")
-            return
-        if now - self._last_automated_input < config.GLOBAL_ACTION_COOLDOWN:
-            return  # budget exhausted; retried on the next 10 Hz tick
-        critical = best <= PRIORITY_BUFF
-        if not critical or config.DEFER_CRITICAL_ACTIONS:
-            held = int(snapshot.get("physical_keys_held", 0) or 0)
-            if held >= config.MAX_PHYSICAL_KEYS:
-                logger.debug(
-                    f"Deferring action: user holds {held} keys "
-                    f"(limit {config.MAX_PHYSICAL_KEYS})")
-                return  # request stays queued and is retried
-        entry = self._pop_next()
-        if entry is None:
-            return
-        priority, key, reason = entry
-        is_buff = priority == PRIORITY_BUFF
-        if not self._can_press(is_buff=is_buff):
-            self._queue.append(entry)
-            return
-        # Per-key cooldown still applies (prevents heal spam).
-        per_key = config.HEALTH.cooldown if reason == "health" else (
-            config.MANA.cooldown if reason == "mana" else 0.0)
-        with self._lock:
-            last = self._last_pressed.get(key)
-            if per_key and last is not None and now - last < per_key:
-                self._queue.append(entry)   # requeue, still on cooldown
-                return
-            self._last_pressed[key] = now
-        self._last_automated_input = time.perf_counter()
-        logger.info(f"Dispatching '{key}' ({reason})")
-        self._record_press(is_buff=is_buff)
-        if is_buff:
-            self.press_buff_async(key)
-        else:
-            self.press_async(key)
-        self._state.set("last_input_timestamp", time.perf_counter())
-        with self._lock:
-            last_actions = list(self._state.get("last_actions", []))
-            last_actions.append({"key": key, "time": time.time()})
-            self._state.set("last_actions", last_actions[-3:])
-
-    def _collect(self, state: SharedState, snapshot: Dict[str, object]) -> None:
-        """Turns the current world state into queued press requests.
-
-        No key is pressed here; this only enqueues. ``_dispatch`` decides what
-        actually fires and when.
-
-        Args:
-            state: Shared state (used to drain the buff queue).
-            snapshot: Consistent copy of the shared state.
-        """
-        repot = bool(snapshot.get("repot_active", False))
-        rebuff = bool(snapshot.get("rebuff_active", False))
-        looting = bool(snapshot.get("looting_active", False))
-
-        # Drain scheduled buffs every cycle so the queue never backs up, but
-        # only enqueue them while rebuffing is enabled.
-        pending = state.drain_buff_presses()
-        if pending and rebuff:
-            for keybind in pending:
-                self._enqueue(PRIORITY_BUFF, keybind, "buff")
-        loot_key = config.LOOTING_KEYBIND.strip()
-        if not looting:
-            self.release(loot_key) if loot_key else None
-            self._last_loot_tap = 0.0
-        elif loot_key and (
-                time.perf_counter() - self._last_loot_tap
-                >= config.LOOT_TAP_INTERVAL):
-            self._enqueue(PRIORITY_LOOT, loot_key, "loot")
-            self._last_loot_tap = time.perf_counter()
-        if repot:
-            if snapshot.get("health_low"):
-                self._enqueue(PRIORITY_HEAL, config.HEALTH.keybind, "health")
-            if snapshot.get("mana_low"):
-                self._enqueue(PRIORITY_MANA, config.MANA.keybind, "mana")
 
     def run_cycle(self, state: SharedState) -> None:
         """Runs one action cycle with context-aware looting and loading screen detection."""

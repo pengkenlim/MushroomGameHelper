@@ -55,14 +55,11 @@ class LootingConfig:
 
     Attributes:
         keybind: Key held down while looting is active (e.g. ``"x"``).
-        retrigger_interval: Seconds after which the held key is released and
-            re-held so the game does not ignore a long-held key.
         toggle_key_1: First key of the on/off chord (e.g. ``"ctrl"``).
         toggle_key_2: Second key of the on/off chord (e.g. ``"l"``).
     """
 
     keybind: str = "z"
-    retrigger_interval: float = 5.0
     toggle_key_1: str = "ctrl"
     toggle_key_2: str = "l"
 
@@ -92,7 +89,6 @@ class Config:
     start_stop_toggle_1: str = "f12"
     start_stop_toggle_2: str = ""
     looting_keybind: str = "z"
-    looting_retrigger_interval: float = 2.0
 
 
 @dataclass
@@ -182,18 +178,11 @@ def _looting_from_dict(data: Any, default: LootingConfig) -> LootingConfig:
 
     Returns:
         The resulting looting configuration.
-
-    Raises:
-        ValueError: If ``retrigger_interval`` is not a positive finite number.
     """
     if not isinstance(data, dict):
         return default
-    interval = float(data.get("retrigger_interval", default.retrigger_interval))
-    if not 0.0 < interval < float("inf"):
-        raise ValueError("retrigger_interval must be a positive number")
     return LootingConfig(
         keybind=str(data.get("keybind", default.keybind)),
-        retrigger_interval=interval,
         toggle_key_1=str(data.get("toggle_key_1", default.toggle_key_1)),
         toggle_key_2=str(data.get("toggle_key_2", default.toggle_key_2)),
     )
@@ -255,9 +244,6 @@ def load_config(path: Path = CALIBRATION_PATH) -> Config:
             start_stop_toggle_1=str(data.get("start_stop_toggle_1", default.start_stop_toggle_1)),
             start_stop_toggle_2=str(data.get("start_stop_toggle_2", default.start_stop_toggle_2)),
             looting_keybind=str(data.get("looting_keybind", default.looting_keybind)),
-            looting_retrigger_interval=float(
-                data.get("looting_retrigger_interval",
-                         default.looting_retrigger_interval)),
         )
     except (ValueError, TypeError, AttributeError, OSError, OverflowError):
         return default
@@ -348,13 +334,6 @@ BUFF_CAST_LOCKOUT: float = 0.8
 BUFF_DOUBLE_TAP_GAP: float = 0.35
 # Backward-compatible alias used by earlier action timing checks.
 RESOLUTION_LIMIT: float = GLOBAL_RESOLUTION_LIMIT
-# Minimum seconds between ANY two automated key presses. Prevents the game
-# engine's limited input buffer from dropping simultaneous presses.
-GLOBAL_ACTION_COOLDOWN: float = 0.01
-# Minimum seconds between two loot taps.
-LOOT_TAP_INTERVAL: float = 0.1
-# Maximum pending requests held by the dispatcher queue.
-ACTION_QUEUE_MAX: int = 500
 # Keys that the user holds for movement/jumping. These do NOT consume the
 # game engine's action input buffer, so they are excluded from the contention count.
 IGNORED_PHYSICAL_KEYS: Set[str] = {"left", "right", "up", "down", "space"}
@@ -396,7 +375,6 @@ LOOTING_TOGGLE_2: str = _loaded.looting_toggle_2
 START_STOP_TOGGLE_1: str = _loaded.start_stop_toggle_1
 START_STOP_TOGGLE_2: str = _loaded.start_stop_toggle_2
 LOOTING_KEYBIND: str = _loaded.looting_keybind
-LOOTING_RETRIGGER_INTERVAL: float = _loaded.looting_retrigger_interval
 
 # Other keybinds (pynput key names or single characters).
 KEYBINDS: Dict[str, str] = {
@@ -414,10 +392,6 @@ BUFF_INPUT_COOLDOWN: float = 0.5
 # How long (seconds) a tap-style key is held.
 DEFAULT_PRESS_DURATION: float = 0.1
 
-# Gap (seconds) between the release and the re-press, so the game engine
-# registers two distinct key events.
-LOOTING_RETRIGGER_GAP: float = 0.25
-
 
 def current_config() -> Config:
     """Builds a :class:`Config` from the current module-level values.
@@ -434,7 +408,6 @@ def current_config() -> Config:
         mana=MANA,
         looting=LootingConfig(
             keybind=LOOTING_KEYBIND,
-            retrigger_interval=LOOTING_RETRIGGER_INTERVAL,
             toggle_key_1=LOOTING_TOGGLE_1,
             toggle_key_2=LOOTING_TOGGLE_2,
         ),
@@ -447,7 +420,6 @@ def current_config() -> Config:
         start_stop_toggle_1=START_STOP_TOGGLE_1,
         start_stop_toggle_2=START_STOP_TOGGLE_2,
         looting_keybind=LOOTING_KEYBIND,
-        looting_retrigger_interval=LOOTING_RETRIGGER_INTERVAL,
     )
 
 
