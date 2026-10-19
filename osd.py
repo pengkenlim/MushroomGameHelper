@@ -26,8 +26,9 @@ def format_percent(label: str, value: Optional[float]) -> str:
     return f"{label}: --%" if value is None else f"{label}: {value:.0f}%"
 
 def format_buffs(schedule_status: Optional[List[Dict[str, Any]]]) -> str:
+    """Formats the enabled buff schedules."""
     items = [f"{s['name']} [{s['keybind']}]" for s in schedule_status or []]
-    return f"Active Buffs: [{', '.join(items)}]"
+    return f"Added Buffs: [{', '.join(items)}]"
 
 def format_toggle(label: str, enabled: bool, key1: str, key2: str) -> str:
     """Returns a human-readable on/off status line for a toggle state."""
@@ -116,7 +117,7 @@ class OSDWindow:
                 ("rebuff", "Re-buffing: OFF"),
                 ("emergency_stop", "Emergency Stop: Unbound"),
                 ("last_actions", "Recent Actions: None"),
-                ("buffs", "Active Buffs: []"),
+                ("buffs", "Added Buffs: []"),
                 ("buff_countdowns", "Buff countdowns: None"),
             )}
         for var in self.vars.values():

@@ -184,7 +184,7 @@ def format_percent(label: str, value: Optional[float]) -> str:
 
 def format_buffs(schedule_status: Optional[List[Dict[str, Any]]]) -> str:
     items = [f"{s['name']} [{s['keybind']}]" for s in schedule_status or []]
-    return f"Active Buffs: [{', '.join(items)}]" if items else "Active Buffs: []"
+    return f"Added Buffs: [{', '.join(items)}]" if items else "Added Buffs: []"
 
 
 def format_toggle(label: str, enabled: bool, key1: str, key2: str) -> str:
