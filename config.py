@@ -45,7 +45,7 @@ class BarConfig:
     empty_lower: HSV = (0, 0, 0)
     empty_upper: HSV = (180, 255, 60)
     threshold_percent: float = 40.0
-    keybind: str = "h"
+    keybind: str = "ctrl"
     cooldown: float = 1.0
 
 
@@ -61,7 +61,7 @@ class LootingConfig:
         toggle_key_2: Second key of the on/off chord (e.g. ``"l"``).
     """
 
-    keybind: str = "x"
+    keybind: str = "z"
     retrigger_interval: float = 5.0
     toggle_key_1: str = "ctrl"
     toggle_key_2: str = "l"
@@ -79,18 +79,18 @@ class Config:
             roi=(0, 20, 100, 10),
             full_lower=(100, 150, 150),
             full_upper=(130, 255, 255),
-            keybind="m",
+            keybind="shift",
         )
     )
     looting: LootingConfig = field(default_factory=LootingConfig)
-    repot_toggle_1: str = "0"
-    repot_toggle_2: str = "7"
-    rebuff_toggle_1: str = "0"
-    rebuff_toggle_2: str = "8"
-    looting_toggle_1: str = "0"
-    looting_toggle_2: str = "9"
-    start_stop_toggle_1: str = "0"
-    start_stop_toggle_2: str = "6"
+    repot_toggle_1: str = "f9"
+    repot_toggle_2: str = ""
+    rebuff_toggle_1: str = "f10"
+    rebuff_toggle_2: str = ""
+    looting_toggle_1: str = "f11"
+    looting_toggle_2: str = ""
+    start_stop_toggle_1: str = "f12"
+    start_stop_toggle_2: str = ""
     looting_keybind: str = "z"
     looting_retrigger_interval: float = 2.0
 

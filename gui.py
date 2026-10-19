@@ -826,6 +826,20 @@ class App:
         dialog = tk.Toplevel(self.root)
         dialog.title("Add Buff")
         dialog.transient(self.root)
+        # Center the dialog relative to the main window
+        dialog.update_idletasks()
+        parent_x = self.root.winfo_rootx()
+        parent_y = self.root.winfo_rooty()
+        parent_width = self.root.winfo_width()
+        parent_height = self.root.winfo_height()
+        
+        dialog_width = dialog.winfo_reqwidth()
+        dialog_height = dialog.winfo_reqheight()
+        
+        x = parent_x + (parent_width // 2) - (dialog_width // 2)
+        y = parent_y + (parent_height // 2) - (dialog_height // 2)
+        
+        dialog.geometry(f"+{x}+{y}")
         vars_: Dict[str, tk.StringVar] = {}
         for row, label in enumerate(("Name", "Keybind", "Interval (s)")):
             ttk.Label(dialog, text=label).grid(row=row, column=0, sticky="w",
@@ -872,6 +886,20 @@ class App:
         dialog = tk.Toplevel(self.root)
         dialog.title(f"Edit Buff: {name}")
         dialog.transient(self.root)
+        # Center the dialog relative to the main window
+        dialog.update_idletasks()
+        parent_x = self.root.winfo_rootx()
+        parent_y = self.root.winfo_rooty()
+        parent_width = self.root.winfo_width()
+        parent_height = self.root.winfo_height()
+        
+        dialog_width = dialog.winfo_reqwidth()
+        dialog_height = dialog.winfo_reqheight()
+        
+        x = parent_x + (parent_width // 2) - (dialog_width // 2)
+        y = parent_y + (parent_height // 2) - (dialog_height // 2)
+        
+        dialog.geometry(f"+{x}+{y}")
         vars_: Dict[str, tk.StringVar] = {}
         
         fields = [
@@ -943,6 +971,20 @@ class App:
         dialog = tk.Toplevel(self.root)
         dialog.title("Key Capture")
         dialog.transient(self.root)
+        # Center the dialog relative to the main window
+        dialog.update_idletasks()
+        parent_x = self.root.winfo_rootx()
+        parent_y = self.root.winfo_rooty()
+        parent_width = self.root.winfo_width()
+        parent_height = self.root.winfo_height()
+        
+        dialog_width = dialog.winfo_reqwidth()
+        dialog_height = dialog.winfo_reqheight()
+        
+        x = parent_x + (parent_width // 2) - (dialog_width // 2)
+        y = parent_y + (parent_height // 2) - (dialog_height // 2)
+        
+        dialog.geometry(f"+{x}+{y}")
         prompt = ttk.Label(dialog, text="Press any key or mouse button...")
         dialog.label = prompt  # type: ignore[attr-defined]
         prompt.pack(padx=20, pady=(20, 4))
