@@ -70,8 +70,8 @@ It watches your screen, reads your health and mana bars, and presses the right k
 
 1. On first launch, you will need to navigate to the **Dashboard** tab. Select game window from dropdown box. 
 
-   > [!NOTE]
-   > **Game window size/resolution matters:** The tool relies on visual cues from the game window. Ensure your game is running at a consistent resolution and is not resized during gameplay for accurate detection. Make any adjustment to your game window size before next step.
+> [!TIP]
+> **Game window size/resolution matters:** The tool relies on visual cues from the game window. Ensure your game is running at a consistent resolution and is not resized during gameplay for accurate detection. Make any adjustment to your game window size before next step.
 
 
    <br>
@@ -97,18 +97,18 @@ It watches your screen, reads your health and mana bars, and presses the right k
    <img src="other_images\calibration.gif" alt="MushroomGameHelper Calibration demo" width="900" />
    <br>
 
-   > [!NOTE]
-   > **Useful tips:** Try to cover the entire length of the bars when dragging the calibration box for more accurate detection. The width do not matter as much-you can undershot slightly. If your HP or MP bars are full, you can click on the empty portions of the EXP bar to select the "Empty" pixel (assuming that the empty portions of the EXP bar looks the same as the empty portions of HP/MP bars).
+> [!TIP]
+> **Useful tips:** Try to cover the entire length of the bars when dragging the calibration box for more accurate detection. The width do not matter as much-you can undershot slightly. If your HP or MP bars are full, you can click on the empty portions of the EXP bar to select the "Empty" pixel (assuming that the empty portions of the EXP bar looks the same as the empty portions of HP/MP bars).
 
 4. Return to the **Dashboard**, set your desired thresholds, key-binds and toggle-keys.
 
-   > [!NOTE]
-   > **Tooltips are helpful:** Hover over buttons and options in the dashboard to see helpful explanations and guidance.
+> [!TIP]
+> **Tooltips are helpful:** Hover over buttons and options in the dashboard to see helpful explanations and guidance.
 
 5. Go to **Manage Buffs** tab to add your buffs.
 
-   > [!NOTE]
-   > **Autobuffing is still not perfect:** Refer to [Feature status map](#feature-map) for more information. If you don't like the current jank of autobuffing functionality, you can still use the autobuffing toggle-key as sort of a manual multi-buff macro by enabling-disabling it as needed. 
+> [!NOTE]
+> **Autobuffing is still not perfect:** Refer to [Feature status map](#feature-map) for more information. If you don't like the current jank of autobuffing functionality, you can still use the autobuffing toggle-key as sort of a manual multi-buff macro by enabling-disabling it as needed. 
 
    <br>
 
