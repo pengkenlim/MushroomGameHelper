@@ -93,11 +93,11 @@ class Config:
         )
     )
     looting: LootingConfig = field(default_factory=LootingConfig)
-    repot_toggle_1: str = "f9"
+    repot_toggle_1: str = "f10"
     repot_toggle_2: str = ""
-    rebuff_toggle_1: str = "f10"
+    rebuff_toggle_1: str = "f11"
     rebuff_toggle_2: str = ""
-    looting_toggle_1: str = "f11"
+    looting_toggle_1: str = "f9"
     looting_toggle_2: str = ""
     start_stop_toggle_1: str = "f12"
     start_stop_toggle_2: str = ""

@@ -1,7 +1,7 @@
 from PIL import Image
 
-SOURCE = "C:\\path\\to\\MushroomGameHelper\\visual_assets\\green_blob.png"   # Your square, high-res PNG (256x256 or larger)
-OUTPUT = "C:\\path\\to\\MushroomGameHelper\\visual_assets\\green_blob.ico"
+SOURCE = "C:\\Users\\limpe\\MushroomGameHelper\\visual_assets\\green_blob.png"   # Your square, high-res PNG (256x256 or larger)
+OUTPUT = "C:\\Users\\limpe\\MushroomGameHelper\\visual_assets\\green_blob.ico"
 
 img = Image.open(SOURCE).convert("RGBA")
 
