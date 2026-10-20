@@ -68,7 +68,7 @@ It watches your screen, reads your health and mana bars, and presses the right k
 <a id="first-time-setup"></a>
 ### First-Time Setup
 
-1. On first launch, you will need to navigate to the **Dashboard** tab. Select game window from dropdown box. 
+#### 1. On first launch, you will need to navigate to the **Dashboard** tab. Select game window from dropdown box. 
 
 > [!TIP]
 > **Game window size/resolution matters:** The tool relies on visual cues from the game window. Ensure your game is running at a consistent resolution and is not resized during gameplay for accurate detection. Make any adjustment to your game window size before next step.
@@ -80,7 +80,7 @@ It watches your screen, reads your health and mana bars, and presses the right k
    <br>
 
 
-2. Go to the **Calibrate Bars** tab and click **Launch Bar Calibrator**.
+#### 2. Go to the **Calibrate Bars** tab and click **Launch Bar Calibrator**.
 
    <br>
 
@@ -88,10 +88,10 @@ It watches your screen, reads your health and mana bars, and presses the right k
 
    <br>
 
-2. An OpenCV window will appear.
+#### 3. An OpenCV window will appear.
 
 
-3. Drag a box around your HP bar, click a "Full" pixel, then click an "Empty" pixel. Repeat for MP.
+#### 4. Drag a box around your HP bar, click a "Full" pixel, then click an "Empty" pixel. Repeat for MP.
    
    <br>
    <img src="other_images\calibration.gif" alt="MushroomGameHelper Calibration demo" width="900" />
@@ -100,12 +100,12 @@ It watches your screen, reads your health and mana bars, and presses the right k
 > [!TIP]
 > **Useful tips:** Try to cover the entire length of the bars when dragging the calibration box for more accurate detection. The width do not matter as much-you can undershot slightly. If your HP or MP bars are full, you can click on the empty portions of the EXP bar to select the "Empty" pixel (assuming that the empty portions of the EXP bar looks the same as the empty portions of HP/MP bars).
 
-4. Return to the **Dashboard**, set your desired thresholds, key-binds and toggle-keys.
+#### 5. Return to the **Dashboard**, set your desired thresholds, key-binds and toggle-keys.
 
 > [!TIP]
 > **Tooltips are helpful:** Hover over buttons and options in the dashboard to see helpful explanations and guidance.
 
-5. Go to **Manage Buffs** tab to add your buffs.
+#### 6. Go to **Manage Buffs** tab to add your buffs.
 
 > [!NOTE]
 > **Autobuffing is still not perfect:** Refer to [Feature status map](#feature-map) for more information. If you don't like the current jank of autobuffing functionality, you can still use the autobuffing toggle-key as sort of a manual multi-buff macro by enabling-disabling it as needed. 
@@ -115,7 +115,7 @@ It watches your screen, reads your health and mana bars, and presses the right k
    <img src="other_images/Manage_Buffs_tab.png" alt="MushroomGameHelper mushroom game screenshot " width="700" />
    <br>
 
-6. Go to **Dashboard** tab to press start. An On-Screen display will show the current status of the tool. It is always on top so that you can view it in-game. You can drag it around to reposition it as needed using the right-mouse button.
+#### 7. Go to **Dashboard** tab to press start. An On-Screen display will show the current status of the tool. It is always on top so that you can view it in-game. You can drag it around to reposition it as needed using the right-mouse button.
 
    <br>
    <img src="other_images\OSD2.gif" alt="MushroomGameHelper OSD demo" width="900" />
@@ -143,23 +143,24 @@ If you've looked into Mushroom game automation before, you've probably seen othe
 ### Build from Source
 To run or modify the tool directly from the Python script:
 
-1. **Prerequisites:** Install [Python 3.10+](https://www.python.org/downloads/). Ensure "Add Python to PATH" is checked during installation.
-2. **Clone the repository:**
+#### 1. **Prerequisites:**
+Install [Python 3.10+](https://www.python.org/downloads/). Ensure "Add Python to PATH" is checked during installation.
+#### 2. **Clone the repository:**
    ```bash
    git clone https://github.com/pengkenlim/MushroomGameHelper.git
    cd MushroomGameHelper
    ```
-3. **Create a virtual environment (Recommended):**
+#### 3. **Create a virtual environment (Recommended):**
    ```bash
    python -m venv venv
    # Windows:
    venv\Scripts\activate
    ```
-4. **Install dependencies:**
+#### 4. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
-5. **Run the application:**
+#### 5. **Run the application:**
    ```bash
    python main.py
    ```
@@ -191,16 +192,16 @@ Hello everyone! I would like to dabble in software engineering as a hobby, but a
 
 As I developed the tool, I wanted to make sure it respected the spirit of the game(s) we love. Here are a few thoughts on why I built it and how I hope it gets used:
 
-**Preserving the Core Gameplay**
+#### **Preserving the Core Gameplay**
 I have immense respect for game design and the effort required to progress. This tool was never meant to play the game *for* you or allow for AFK farming. The core joy of the game—exploring, hunting, and strategizing—still requires your active attention. The goal for this tool is simply to act as a digital assistant for the repetitive micro-management (like watching timers and tapping loot), so players can enjoy the games without it being too much a grind.
 
-**A Humble Accessibility Aid**
+#### **A Humble Accessibility Aid**
 During my own long grinding sessions, I noticed my hands getting fatigued and my focus draining from constantly tracking multiple overlapping buff timers and health bars. I realized that this heavy cognitive and motor load can be a genuine barrier to entry, especially for players dealing with repetitive strain, motor challenges, or attention difficulties. I hope this tool can serve as a gentle accessibility bridge, allowing more people to comfortably enjoy the end-game content they love without physical burnout.
 
-**Bridging the Free-to-Play Gap**
+#### **Bridging the Free-to-Play Gap**
 In many MMOs, built-in quality-of-life features like auto-looting and auto-buffing are often tied to in-game cash purchases (e.g., premium cash-shop pets in a certain classic mushroom game). As a money-tight and a Free-to-Play (F2P) player, I couldn't always justify those purchases, but I still wanted to enjoy the game comfortably without my hands hurting. I built this as a free, open-source alternative to help bridge that gap for the F2P community. That said, I deeply respect the developers who keep the servers running, and I always encourage supporting them through cosmetics and other official channels!
 
-**A Generic Technical Framework**
+#### **A Generic Technical Framework**
 From a technical standpoint, the code itself contains no references, memory-reading hooks, or IP-specific data for any particular game. It is entirely blind to what you are playing; it simply watches a configurable rectangle of pixels on your monitor and simulates keystrokes based on the colors it sees. 
 
 Thank you for checking out my project. Whether you use it to save your hands, fork it to learn from the code, or just pass by, I appreciate you taking the time to read this. Please use it responsibly, take care of your health, and happy hunting! 🍄
