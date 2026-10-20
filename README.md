@@ -3,12 +3,14 @@
 # 🍄 MushroomGameHelper
 
 **An external computer-vision assistant for 2D pixelated games.**  
-It watches your screen, reads your health and mana bars, and presses the right keys at the right time—without ever reading game memory.
+It watches your screen, reads your health and mana bars, and presses the right keys at the right time. All of this is done via screen capture without ever reading game memory.
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/License-MIT-lightgrey)
 ![Status](https://img.shields.io/badge/Status-Active_Development-orange)
 ![Platform](https://img.shields.io/badge/Platform-Windows_10/11-lightgrey)
+![Help Wanted](https://img.shields.io/badge/help_wanted-macOS_compatibility-blue)
+![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)
 
 <br>
 
@@ -18,16 +20,18 @@ It watches your screen, reads your health and mana bars, and presses the right k
 
 ---
 > [!IMPORTANT]
-> **READ THIS FIRST:** Please read [A Note on the Project’s Origins and Philosophy](#philosophy) and [Why use this tool instead of other bots?](#why-use-this-tool) before you decide if this tool is for you, or if you have reservations about using the tool!
+> Please read [A Note on the Project’s Origins and Philosophy](#philosophy) and [Why use this tool instead of others?](#why-use-this-tool) before you decide if this tool is for you, or if you have reservations about using the tool!
 
 ## 📊 Feature Status Map
 *Transparency is key. Here is a quick summary of the tool's current capabilities based on inherent the game-engine limitations for the mushroom game.*
+<a id="Feature-Map"></a>
 
-| Feature | Status | Caveats & Limitations |
-| :--- | :---: | :--- |
-| **Auto-Pot (HP/MP)** | 🟢 **100%** | Highly reliable with temporal filtering. *Note: Bot potion presses will briefly interrupt user-held attack keys (unavoidable OS input behavior).* |
-| **Context-Aware Autoloot** | 🟡 **90%** | Holds the loot key when idle and releases on attack. *Note: The held-down loot key may occasionally be interrupted by rapid manual user input.* |
-| **Timed Autobuff** | 🟠 **60%** | Uses rapid double-taps to bypass animation lockouts. *Note: Buff presses will interrupt held attack keys, and buffs may fail to register if the user is mashing keys concurrently.* |
+| Feature | Functionality Status | Description / features | Caveats & Limitations
+| :--- | :--- | :--- | :--- |
+| **Auto-Pot (HP/MP)** | 🟢Feature-Complete | Reliable potion usage based on HP/MP bar filled (user-defined %).<br> • Cooldown added to prevent spamming.<br> • In-game screen fadeout aware. | • Potion key-presses will interrupt user-held attack keys in Mushroom game (unavoidable due to game engine behavior).<br> • Resizing the game window after calibration may affect the accuracy of potion usage. |
+| **Context-Aware Autoloot** | 🟡Might Require Optimization | Holds the loot key during periods where no user input is detected (null input space) to trigger autoloot.<br> • Retriggers every 2 sec automatically in case in-game UI interaction interrupts the autolooting.<br> • User movement inputs are not considered in the input space based on how they are treated by Mushroom game.| • Autolooting might be interrrupted in certain scenarios due to user input or UI interactions.<br> • This is mitigated somewhat by the automatic retriggering mechanism.* |
+| **Timed Autobuff** | 🟠Partial functionality | Automated key-presses for user-defnined buffs.<br> • Rapid double tapping to disrupt any user-held keys before the actual buff-triggerring key press.<br> • Short milisecond cooldowns implemented between buff key-presses due to skill animation lock.|• Buff key-presses will interrupt user-held attack keys in Mushroom game (unavoidable due to game engine behavior)<br> •Buffs may also fail to register when buff key-presses coincide with other user inputs.<br> • Avoid registering buffs with short intervals for best results.|
+
 
 > [!IMPORTANT]
 > **Antivirus False Positives:** Because this tool uses external screen capture (`mss`) and keystroke simulation (`pynput`), Windows Defender may flag the `.exe` as a false positive. This is a standard behavior for all Python automation tools. The code is 100% open-source for verification.
@@ -37,16 +41,15 @@ It watches your screen, reads your health and mana bars, and presses the right k
 ## 📑 Table of Contents
 
 **👤 For General Users**
-1. [Quick Start (Download & Play)](#quick-start)
+1. [Quick Start (Download and extract)](#quick-start)
 2. [First-Time Setup & Calibration](#first-time-setup)
-3. [User Guide](#user-guide)
 
 **💻 For Developers**
 4. [Build from Source](#build-from-source)
 5. [Creating an Optimized Executable](#creating-an-optimized-executable)
 
 **📚 Reference**
-6. [Why use this tool instead of other bots?](#why-use-this-tool)
+6. [Why use this tool instead of others?](#why-use-this-tool)
 7. [Architecture & Design](#architecture--design)
 8. [A Note on the Project’s Origins and Philosophy](#philosophy)
 
@@ -55,7 +58,7 @@ It watches your screen, reads your health and mana bars, and presses the right k
 ## 👤 For General Users
 
 <a id="quick-start"></a>
-### 1. Quick Start (Download & Play)
+### 1. Quick Start (Download and extract)
 1. Go to the [Releases](https://github.com/pengkenlim/MushroomGameHelper/releases) page.
 2. Download the latest `MushroomGameHelper_vX.X.X.zip`.
 3. Extract the folder to your Desktop (do not run it from inside the `.zip`).
@@ -64,20 +67,56 @@ It watches your screen, reads your health and mana bars, and presses the right k
 
 <a id="first-time-setup"></a>
 ### 2. First-Time Setup
-1. On first launch, the tool will guide you to the **Calibrate Bars** tab.
-2. Click **Launch Bar Calibrator**. An OpenCV window will appear.
+
+1. On first launch, you will need to navigate to the **Dashboard** tab. Select game window from dropdown box. 
+
+> [!NOTE]
+> **Game window size/resolution matters:** The tool relies on visual cues from the game window. Ensure your game is running at a consistent resolution and is not resized during gameplay for accurate detection. Make any adjustment to your game window size before next step.
+
+
+<br>
+
+<img src="other_images/Dashboard_tab.png" alt="MushroomGameHelper dashboard tab " width="400" />
+
+
+2. Go to the **Calibrate Bars** tab and click **Launch Bar Calibrator**.
+
+<br>
+
+<img src="other_images/Calibrate_tab.png" alt="MushroomGameHelper calibrate tab" width="400" />
+
+
+
+2. An OpenCV window will appear.
+<br>
+
+<img src="other_images/mushroom_game.png" alt="MushroomGameHelper mushroom game screenshot " width="400" />
+
 3. Drag a box around your HP bar, click a "Full" pixel, then click an "Empty" pixel. Repeat for MP.
-4. Return to the **Dashboard**, set your desired thresholds, and click **Start**.
 
-<a id="user-guide"></a>
-### 3. User Guide
-*Coming soon...*  
-*(Detailed step-by-step instructions, screenshots, and advanced configuration tips will be added here.)*
+> [!NOTE]
+> **Useful tips:** Try to cover the entire length of the bars when dragging the calibration box for more accurate detection. The width do not matter as much-you can undershot slightly. If your HP or MP bars are full, you can click on the empty portions of the EXP bar to select the "Empty" pixel (assuming that the empty portions of the EXP bar looks the same as the empty portions of HP/MP bars).
 
----
+4. Return to the **Dashboard**, set your desired thresholds, key-binds and toggle-keys.
+
+> [!NOTE]
+> **Tooltips are helpful:** Hover over buttons and options in the dashboard to see helpful explanations and guidance.
+
+5. Go to **Manage Buffs** tab to add your buffs.
+
+> [!NOTE]
+> **Autobuffing is still not perfect:** Refer to [Feature status map](#feature-map) for more information. If you don't like the current jank of autobuffing functionality, you can still use the autobuffing toggle-key as sort of a manual multi-buff macro by enabling-disabling it as needed. 
+
+<br>
+
+<img src="other_images/Manage_Buffs_tab.png" alt="MushroomGameHelper mushroom game screenshot " width="400" />
+
+6. Go to **Dashboard** tab to press start. An On-Screen display will show the current status of the tool. It is always on top so that you can view it in-game. You can drag it around to reposition it as needed using the right-mouse button.
+
+
 
 <a id="why-use-this-tool"></a>
-## 🤔 Why use this tool instead of other bots?
+## 🤔 Why use this tool instead of others?
 
 If you've looked into Mushroom game automation before, you've probably seen other tools. Here is how MushroomGameHelper is different.
 

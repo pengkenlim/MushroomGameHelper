@@ -77,12 +77,12 @@ class Vision:
                 f"Window '{title}' not found or minimized; "
                 f"keeping last capture region {self.region}")
             return
-        if (bounds["width"], bounds["height"]) != (
-                self.region["width"], self.region["height"]):
+        if (bounds.get("width"), bounds.get("height")) != (
+                self.region.get("width"), self.region.get("height")):
             logger.warning(
                 f"Capture size changed from "
-                f"{self.region['width']}x{self.region['height']} to "
-                f"{bounds['width']}x{bounds['height']}. Health/mana ROIs are "
+                f"{self.region.get('width')}x{self.region.get('height')} to "
+                f"{bounds.get('width')}x{bounds.get('height')}. Health/mana ROIs are "
                 f"relative to this region and are probably misaligned now - "
                 f"re-run the calibrator.")
         if bounds != self.region:
@@ -108,8 +108,8 @@ class Vision:
         except Exception as exc:  # never let the vision thread die here
             logger.warning(f"Window lookup raised unexpectedly: {exc}")
             bounds = None
-        if bounds is not None and (bounds["width"] <= 0
-                                   or bounds["height"] <= 0):
+        if bounds is not None and (bounds.get("width", 0) <= 0
+                                   or bounds.get("height", 0) <= 0):
             bounds = None  # never adopt an invalid region
         if bounds is None:
             if self._window_found is not False:
@@ -160,7 +160,30 @@ class Vision:
         """
         if self._sct is None:
             self._sct = mss.mss()
-        shot = np.array(self._sct.grab(self.region))
+
+        # Dynamic region resolution
+        if config.WINDOW_TITLE:
+            try:
+                bounds = get_window_bounds(config.WINDOW_TITLE)
+                if bounds:
+                    region = bounds
+                else:
+                    region = {
+                        "top": config.CAPTURE_TOP, "left": config.CAPTURE_LEFT,
+                        "width": config.CAPTURE_WIDTH, "height": config.CAPTURE_HEIGHT
+                    }
+            except Exception:
+                region = {
+                    "top": config.CAPTURE_TOP, "left": config.CAPTURE_LEFT,
+                    "width": config.CAPTURE_WIDTH, "height": config.CAPTURE_HEIGHT
+                }
+        else:
+            region = {
+                "top": config.CAPTURE_TOP, "left": config.CAPTURE_LEFT,
+                "width": config.CAPTURE_WIDTH, "height": config.CAPTURE_HEIGHT
+            }
+
+        shot = np.array(self._sct.grab(region))
         return cv2.cvtColor(shot, cv2.COLOR_BGRA2BGR)
 
     def close(self) -> None:

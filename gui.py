@@ -306,6 +306,9 @@ class App:
             self.start_btn.config(state=tk.DISABLED)
             self.status.set(self.SETUP_INCOMPLETE)
             self.notebook.select(self.calibrate_tab)
+        if gw is None:
+            self.root.after(600, lambda: self.status.set(
+                "Window listing unavailable: pygetwindow failed to import."))
         self.refresh()
 
     def _configure_styles(self) -> None:
@@ -442,6 +445,21 @@ class App:
         return [w.title for w in gw.getAllWindows()
                 if getattr(w, "title", "").strip()]
 
+    def refresh_window_list(self) -> None:
+        """Re-enumerates open window titles into the dropdown."""
+        if gw is None:
+            self.status.set("Window listing unavailable: pygetwindow failed to import.")
+            return
+        try:
+            titles = self.list_window_titles()
+        except Exception as exc:
+            logger.warning(f"Could not list open windows: {exc}")
+            self.status.set(f"Could not list open windows: {exc}")
+            return
+        self.window_dropdown["values"] = titles
+        self.status.set(f"Found {len(titles)} window(s)." if titles
+                        else "No window titles found.")
+
     def _build_window_group(self, parent: ttk.Frame, row: int) -> None:
         """Builds the "Game Window Targeting" group.
 
@@ -465,12 +483,15 @@ class App:
         caption.grid(row=0, column=0, sticky="w", padx=(0, 5), pady=2)
         self.window_dropdown = ttk.Combobox(
             group, textvariable=self.window_title_var, values=window_titles,
-            state="readonly" if window_titles else "disabled", width=24)
-        self.window_dropdown.grid(row=0, column=1, columnspan=5, sticky="ew",
+            state="readonly", width=24)
+        self.window_dropdown.grid(row=0, column=1, columnspan=4, sticky="ew",
                                   pady=2)
         self.window_dropdown.bind("<<ComboboxSelected>>",
                                   self.on_window_select)
-        self._add_tip("window", caption, self.window_dropdown)
+        refresh_btn = ttk.Button(group, text="Refresh", width=8,
+                                command=self.refresh_window_list)
+        refresh_btn.grid(row=0, column=5, padx=(5, 0), pady=2)
+        self._add_tip("window", caption, self.window_dropdown, refresh_btn)
 
         self.advanced_toggle = ttk.Checkbutton(
             group, text="Show Advanced (Manual Coordinates)",
@@ -482,6 +503,10 @@ class App:
 
         for index, (attr, label, _minimum) in enumerate(REGION_FIELDS):
             var = tk.StringVar(value=str(getattr(config, attr)))
+            
+            # Add trace to push manual coordinate changes to config immediately
+            var.trace_add("write", lambda *args, a=attr, v=var: self._sync_capture_config(a, v))
+            
             caption, entry = self._add_field(
                 group, label, var, row=2 + index // 2, column=3 * (index % 2),
                 tip=attr)
@@ -644,9 +669,41 @@ class App:
             else:
                 widget.grid_remove()
 
+    def _sync_capture_config(self, attr: str, variable: object) -> None:
+        """Pushes the current capture settings into ``config`` immediately.
+
+        This keeps the active vision loop synchronized with edits to the Game
+        Window selection and the manual capture-region fields without waiting
+        for the user to click Apply. Invalid intermediate values (for example,
+        a partially typed number while editing) are ignored rather than
+        crashing the GUI.
+        """
+        if attr == "WINDOW_TITLE":
+            config.WINDOW_TITLE = str(variable.get()).strip()
+            return
+        if attr not in {name for name, _, _ in REGION_FIELDS}:
+            return
+        try:
+            value = float(str(variable.get()).strip())
+        except (TypeError, ValueError):
+            return
+        if not math.isfinite(value):
+            return
+        if attr.endswith(("WIDTH", "HEIGHT")):
+            if value < 1:
+                return
+            value = int(value)
+        elif attr.endswith(("TOP", "LEFT")):
+            value = max(0, int(value))
+        else:
+            value = int(value)
+        setattr(config, attr, value)
+
     def on_window_select(self, _event: object = None) -> None:
         """Loads the selected window's geometry into the manual fields."""
         selected_title = self.window_title_var.get().strip()
+        self._sync_capture_config("WINDOW_TITLE", self.window_title_var)
+
         if not selected_title or gw is None:
             return
         try:
