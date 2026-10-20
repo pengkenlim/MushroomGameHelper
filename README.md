@@ -58,7 +58,7 @@ It watches your screen, reads your health and mana bars, and presses the right k
 ## 👤 For General Users
 
 <a id="quick-start"></a>
-###Quick Start (Download and extract)
+### Quick Start (Download and extract)
 1. Go to the [Releases](https://github.com/pengkenlim/MushroomGameHelper/releases) page.
 2. Download the latest `MushroomGameHelper_vX.X.X.zip`.
 3. Extract the folder to your Desktop (do not run it from inside the `.zip`).
