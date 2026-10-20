@@ -1,22 +1,29 @@
-# Contributing to MushroomGameHelper
+# 🤝 Contributing to MushroomGameHelper
 
-Thank you for your interest in improving this project! As this is a passion project, I have specific guidelines for what kinds of contributions I can accept at this time.
+Thank you for your interest in improving MushroomGameHelper! Because this is an active student portfolio project focused on learning robust software engineering principles, I have specific guidelines regarding community contributions.
 
-## What I Am Currently Accepting
-*   **Documentation:** Typos, clarifications, and translations for the `README.md`.
-*   **UI/UX Polish:** Minor CSS/Tkinter tweaks, color adjustments, or layout fixes.
-*   **Bug Fixes:** Fixes for documented issues in the "Troubleshooting Matrix", provided they do not rewrite core architecture.
-*   **Cross-Platform Support:** Improvements for macOS or Linux compatibility (e.g., better `pygetwindow` fallbacks).
+## ✅ What I Am Looking For
+I highly welcome contributions in the following areas:
+* **Documentation:** Fixes to typos, clarifications, translations, or improving the README/CONTRIBUTING guides.
+* **UI/UX Polish:** Minor Tkinter layout tweaks, color adjustments, tooltip additions, or improving the "sketch-style" visual assets.
+* **Bug Fixes:** Solutions for documented issues in the Troubleshooting Matrix or edge-case handling.
+* **Cross-Platform Support:** Improvements or workarounds for macOS or Linux compatibility.
 
-## What I Am NOT Accepting (Please Do Not Submit)
-*   **New Major Features:** I am currently writing all core feature logic myself for portfolio and learning purposes.
-*   **AFK / Auto-Combat / Auto-Pathing:** This project strictly adheres to a "Quality of Life" philosophy. Any code that allows the user to walk away from the keyboard or automates combat decisions will be immediately closed.
-*   **Memory Reading / Packet Injection:** This project relies exclusively on external Computer Vision (screen reading) and OS-level keystroke simulation. PRs attempting to read game memory or inject network packets will be closed to ensure the tool remains generic and safe.
+## 🚫 What I Am Not Accepting (For Now)
+To keep the core architecture intact and aligned with the project's learning goals, I am currently **not** accepting:
+* Memory-reading implementations or DLL injection logic.
+* AFK / Auto-combat / Auto-pathing logic (violates the project's accessibility-first philosophy).
+* Major architectural rewrites that replace the current multi-threaded `SharedState` model.
 
-## How to Submit a PR
-1. Open an Issue first to discuss your proposed bug fix or UI tweak.
-2. Keep PRs small and focused on a single issue.
-3. Ensure your code passes `flake8` linting.
-4. Provide a detailed description of your changes and how to test them.
+## 🛠️ How to Contribute
 
-Thank you for helping keep this project safe and accessible!
+1. **Fork the Repository:** Create your own fork of the project.
+2. **Create a Branch:** Use a descriptive branch name (e.g., `fix/osd-alignment` or `docs/update-readme`).
+3. **Make Your Changes:** Keep your commits focused and atomic. Follow [Conventional Commits](https://www.conventionalcommits.org/) if possible (e.g., `fix: center key capture dialog`).
+4. **Test Locally:** Ensure your changes do not break the core loop, the calibrator, or the optimized PyInstaller build.
+5. **Open a Pull Request:** Provide a clear description of *what* you changed and *why*. Link to any relevant issues.
+
+## 💬 Before You Start
+If you are planning a larger change (even within the accepted categories), please **open an Issue first** to discuss your idea. This ensures we are aligned on the project's direction and saves you from doing work that might not be merged.
+
+Thank you for helping make this tool better for the community! 🍄
