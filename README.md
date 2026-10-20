@@ -41,24 +41,24 @@ It watches your screen, reads your health and mana bars, and presses the right k
 ## 📑 Table of Contents
 
 **👤 For General Users**
-1. [Quick Start (Download and extract)](#quick-start)
-2. [First-Time Setup & Calibration](#first-time-setup)
+* [Quick Start (Download and extract)](#quick-start)
+* [First-Time Setup & Calibration](#first-time-setup)
 
 **💻 For Developers**
-1. [Build from Source](#build-from-source)
-2. [Creating an Optimized Executable](#creating-an-optimized-executable)
+* [Build from Source](#build-from-source)
+* [Creating an Optimized Executable](#creating-an-optimized-executable)
 
 **📚 Reference**
-1. [Why use this tool instead of others?](#why-use-this-tool)
-2. [Architecture & Design](#architecture--design)
-3. [A Note on the Project’s Origins and Philosophy](#philosophy)
+* [Why use this tool instead of others?](#why-use-this-tool)
+* [Architecture & Design](#architecture--design)
+* [A Note on the Project’s Origins and Philosophy](#philosophy)
 
 ---
 
 ## 👤 For General Users
 
 <a id="quick-start"></a>
-### 1. Quick Start (Download and extract)
+###Quick Start (Download and extract)
 1. Go to the [Releases](https://github.com/pengkenlim/MushroomGameHelper/releases) page.
 2. Download the latest `MushroomGameHelper_vX.X.X.zip`.
 3. Extract the folder to your Desktop (do not run it from inside the `.zip`).
@@ -66,52 +66,60 @@ It watches your screen, reads your health and mana bars, and presses the right k
 5. Double-click `MushroomGameHelper.exe`.
 
 <a id="first-time-setup"></a>
-### 2. First-Time Setup
+### First-Time Setup
 
 1. On first launch, you will need to navigate to the **Dashboard** tab. Select game window from dropdown box. 
 
-> [!NOTE]
-> **Game window size/resolution matters:** The tool relies on visual cues from the game window. Ensure your game is running at a consistent resolution and is not resized during gameplay for accurate detection. Make any adjustment to your game window size before next step.
+   > [!NOTE]
+   > **Game window size/resolution matters:** The tool relies on visual cues from the game window. Ensure your game is running at a consistent resolution and is not resized during gameplay for accurate detection. Make any adjustment to your game window size before next step.
 
 
-<br>
+   <br>
 
-<img src="other_images/Dashboard_tab.png" alt="MushroomGameHelper dashboard tab " width="400" />
+   <img src="other_images/Dashboard_tab.png" alt="MushroomGameHelper dashboard tab " width="700" />
+   <br>
 
 
 2. Go to the **Calibrate Bars** tab and click **Launch Bar Calibrator**.
 
-<br>
+   <br>
 
-<img src="other_images/Calibrate_tab.png" alt="MushroomGameHelper calibrate tab" width="400" />
+   <img src="other_images/Calibrate_tab.png" alt="MushroomGameHelper calibrate tab" width="700" />
 
-
+   <br>
 
 2. An OpenCV window will appear.
-<br>
 
-<img src="other_images/mushroom_game.png" alt="MushroomGameHelper mushroom game screenshot " width="400" />
 
 3. Drag a box around your HP bar, click a "Full" pixel, then click an "Empty" pixel. Repeat for MP.
+   
+   <br>
+   <img src="other_images\calibration.gif" alt="MushroomGameHelper Calibration demo" width="900" />
+   <br>
 
-> [!NOTE]
-> **Useful tips:** Try to cover the entire length of the bars when dragging the calibration box for more accurate detection. The width do not matter as much-you can undershot slightly. If your HP or MP bars are full, you can click on the empty portions of the EXP bar to select the "Empty" pixel (assuming that the empty portions of the EXP bar looks the same as the empty portions of HP/MP bars).
+   > [!NOTE]
+   > **Useful tips:** Try to cover the entire length of the bars when dragging the calibration box for more accurate detection. The width do not matter as much-you can undershot slightly. If your HP or MP bars are full, you can click on the empty portions of the EXP bar to select the "Empty" pixel (assuming that the empty portions of the EXP bar looks the same as the empty portions of HP/MP bars).
 
 4. Return to the **Dashboard**, set your desired thresholds, key-binds and toggle-keys.
 
-> [!NOTE]
-> **Tooltips are helpful:** Hover over buttons and options in the dashboard to see helpful explanations and guidance.
+   > [!NOTE]
+   > **Tooltips are helpful:** Hover over buttons and options in the dashboard to see helpful explanations and guidance.
 
 5. Go to **Manage Buffs** tab to add your buffs.
 
-> [!NOTE]
-> **Autobuffing is still not perfect:** Refer to [Feature status map](#feature-map) for more information. If you don't like the current jank of autobuffing functionality, you can still use the autobuffing toggle-key as sort of a manual multi-buff macro by enabling-disabling it as needed. 
+   > [!NOTE]
+   > **Autobuffing is still not perfect:** Refer to [Feature status map](#feature-map) for more information. If you don't like the current jank of autobuffing functionality, you can still use the autobuffing toggle-key as sort of a manual multi-buff macro by enabling-disabling it as needed. 
 
-<br>
+   <br>
 
-<img src="other_images/Manage_Buffs_tab.png" alt="MushroomGameHelper mushroom game screenshot " width="400" />
+   <img src="other_images/Manage_Buffs_tab.png" alt="MushroomGameHelper mushroom game screenshot " width="700" />
+   <br>
 
 6. Go to **Dashboard** tab to press start. An On-Screen display will show the current status of the tool. It is always on top so that you can view it in-game. You can drag it around to reposition it as needed using the right-mouse button.
+
+   <br>
+   <img src="other_images\OSD2.gif" alt="MushroomGameHelper OSD demo" width="900" />
+   <br>
 
 
 
@@ -132,7 +140,7 @@ If you've looked into Mushroom game automation before, you've probably seen othe
 ## 💻 For Developers
 
 <a id="build-from-source"></a>
-### 4. Build from Source
+### Build from Source
 To run or modify the tool directly from the Python script:
 
 1. **Prerequisites:** Install [Python 3.10+](https://www.python.org/downloads/). Ensure "Add Python to PATH" is checked during installation.
@@ -146,8 +154,6 @@ To run or modify the tool directly from the Python script:
    python -m venv venv
    # Windows:
    venv\Scripts\activate
-   # macOS/Linux:
-   source venv/bin/activate
    ```
 4. **Install dependencies:**
    ```bash
@@ -155,15 +161,15 @@ To run or modify the tool directly from the Python script:
    ```
 5. **Run the application:**
    ```bash
-   python main.py --gui
+   python main.py
    ```
 
 <a id="creating-an-optimized-executable"></a>
-### 5. Creating an Optimized Executable
+### Creating an Optimized Executable
 To build a lightweight, standalone `.exe` (requires `upx.exe` in the project root for compression):
 
 ```bash
-pyinstaller --name MushroomGameHelper --noconsole --clean --upx-dir=. --icon="visual_assets\green_blob.ico" --hidden-import=pynput.keyboard._win32 --hidden-import=pynput.mouse._win32 --exclude-module matplotlib --exclude-module scipy --exclude-module pandas --exclude-module PIL --exclude-module setuptools --exclude-module pkg_resources --exclude-module distutils --exclude-module pip --exclude-module wheel --exclude-module pytest --exclude-module unittest --exclude-module doctest --add-data "visual_assets;visual_assets" main.py
+pyinstaller --name MushroomGameHelper --noconsole --clean --upx-dir=. --icon="visual_assets\green_blob.ico" --hidden-import=pynput.keyboard._win32 --hidden-import=pynput.mouse._win32 --add-data "visual_assets;visual_assets" main.py
 ```
 *The resulting optimized folder will be located in `dist/MushroomGameHelper`.*
 
@@ -172,7 +178,7 @@ pyinstaller --name MushroomGameHelper --noconsole --clean --upx-dir=. --icon="vi
 ## 📚 Reference
 
 <a id="architecture--design"></a>
-### 6. Architecture & Design
+### Architecture & Design
 The tool operates on a multi-threaded, lock-protected architecture to ensure the GUI never freezes and input is handled safely:
 * **Vision Thread (`mss` + `OpenCV`):** Captures the screen at ~4 FPS, applies HSV thresholding to the calibrated ROI, and uses a temporal median filter to ignore UI flashes.
 * **Scheduler Thread:** Tracks `perf_counter` to determine when timed buffs are due.
@@ -180,7 +186,7 @@ The tool operates on a multi-threaded, lock-protected architecture to ensure the
 * **Input Contention Guard:** Monitors physical key presses. If the user exceeds a threshold of held keys, low-priority bot actions (like buffs) are deferred to prevent game engine input buffer overflow.
 
 <a id="philosophy"></a>
-### 7. A Note on the Project’s Origins and Philosophy
+### A Note on the Project’s Origins and Philosophy
 Hello everyone! I would like to dabble in software engineering as a hobby, but am woefully inexperienced. As such, I built this project primarily as a personal learning exercise and a portfolio piece. To tackle complex topics like multi-threaded architecture and computer vision, I’ve been experimenting with using AI as a pair-programming tutor to help scaffold the initial framework. My goal isn't just to ship a tool, but to iteratively refine, debug, and deeply understand every line of code so I can grow from relying on AI assistance to mastering the underlying software engineering principles myself. I’ve always loved 2D pixelated side-scrollers (a classic version of a mushroom game in particular), and I’m sharing this publicly to learn from this amazing community, catch bugs I couldn't find alone, and hopefully help a few people along the way.
 
 As I developed the tool, I wanted to make sure it respected the spirit of the game(s) we love. Here are a few thoughts on why I built it and how I hope it gets used:
