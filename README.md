@@ -45,13 +45,13 @@ It watches your screen, reads your health and mana bars, and presses the right k
 2. [First-Time Setup & Calibration](#first-time-setup)
 
 **💻 For Developers**
-4. [Build from Source](#build-from-source)
-5. [Creating an Optimized Executable](#creating-an-optimized-executable)
+1. [Build from Source](#build-from-source)
+2. [Creating an Optimized Executable](#creating-an-optimized-executable)
 
 **📚 Reference**
-6. [Why use this tool instead of others?](#why-use-this-tool)
-7. [Architecture & Design](#architecture--design)
-8. [A Note on the Project’s Origins and Philosophy](#philosophy)
+1. [Why use this tool instead of others?](#why-use-this-tool)
+2. [Architecture & Design](#architecture--design)
+3. [A Note on the Project’s Origins and Philosophy](#philosophy)
 
 ---
 
