@@ -694,17 +694,9 @@ class App:
         ttk.Label(self.calibrate_tab,
                   text="Calibration saves directly to calibration.json"
                   ).grid(row=1, column=0, pady=5)
-
+        
     def launch_calibrator(self) -> None:
-        """Starts ``calibrator.py`` with the main window hidden.
-
-        The subprocess is polled with ``root.after`` instead of being awaited,
-        so the Tk event loop is never blocked. Current settings are saved first
-        because the calibrator reads the capture region from
-        ``calibration.json``. The window is always restored when the process
-        ends (finished, cancelled, closed, crashed) or fails to start, and a
-        failure to start is shown in an error dialog.
-        """
+        """Starts ``calibrator.py`` with the main window hidden."""
         if self._calibrator is not None:
             return
         if self.runner.running:
@@ -713,10 +705,21 @@ class App:
         if not self.save():
             return
         self.root.withdraw()
+        
+        # Determine the correct command based on whether we are frozen or in CLI
+        if getattr(sys, 'frozen', False):
+            # Running as compiled .exe: pass the custom flag to trigger the internal interceptor
+            cmd = [sys.executable, "--calibrate"]
+            # Save calibration.json next to the .exe
+            cwd = str(Path(sys.executable).parent)
+        else:
+            # Running via CLI: pass the python script directly to the python interpreter
+            cmd = [sys.executable, str(CALIBRATOR_PATH)]
+            # Save calibration.json next to the script
+            cwd = str(CALIBRATOR_PATH.parent)
+
         try:
-            self._calibrator = subprocess.Popen(
-                [sys.executable, str(CALIBRATOR_PATH)],
-                cwd=str(CALIBRATOR_PATH.parent))
+            self._calibrator = subprocess.Popen(cmd, cwd=cwd)
         except OSError as exc:
             self.root.deiconify()
             self._report_error(f"Could not launch calibrator: {exc}", exc)

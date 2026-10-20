@@ -174,6 +174,17 @@ def main() -> None:
     """Runs the GUI by default, or launches the overlay/headless mode."""
     logger.info("MushroomHelper main() invoked")
     args = sys.argv[1:]
+        # --- ADD THIS CALIBRATOR INTERCEPTOR ---
+    if "--calibrate" in args:
+        import calibrator
+        # Run the calibrator's main function and exit cleanly when done
+        if hasattr(calibrator, "main"):
+            calibrator.main()
+        else:
+            # Fallback if calibrator just runs at the top level (not recommended but safe)
+            pass 
+        return
+    
     if "--osd" in args:
         from osd import launch_osd
         runner = Runner()
